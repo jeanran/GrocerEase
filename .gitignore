@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment variables (DB credentials)
+.env
+
+# Media uploads
+media/
+
+
+
+# Mac system file
+.DS_Store
+
+# Django collected static (production)
+staticfiles/
+
+# XAMPP / MySQL related
+*.sql
+*.dump
