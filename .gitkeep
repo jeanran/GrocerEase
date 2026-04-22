@@ -1,0 +1,4 @@
+# Windows
+type nul > static/css/.gitkeep
+type nul > static/js/.gitkeep
+type nul > static/images/.gitkeep
