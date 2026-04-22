@@ -1,0 +1,21 @@
+<nav class="navbar">
+    <div class="nav-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </div>
+    <div class="nav-user">
+        <i class="fas fa-user-circle"></i>
+        <span id="userName">User</span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+</nav>
+
+<script>
+    document.getElementById('sidebarToggle')?.addEventListener('click', function() {
+        document.getElementById('sidebar').classList.toggle('active');
+    });
+    
+    const userName = localStorage.getItem('username');
+    if (userName) {
+        document.getElementById('userName').innerText = userName;
+    }
+</script>

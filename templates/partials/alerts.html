@@ -1,0 +1,16 @@
+<div class="alerts-container" id="alertsContainer"></div>
+
+<script>
+    function showAlert(message, type) {
+        const container = document.getElementById('alertsContainer');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type}`;
+        alert.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+            ${message}
+            <button class="alert-close" onclick="this.parentElement.remove()">&times;</button>
+        `;
+        container.appendChild(alert);
+        setTimeout(() => alert.remove(), 5000);
+    }
+</script>

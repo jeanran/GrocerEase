@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GrocerEase - Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="../static/css/style.css">
+    <link rel="stylesheet" href="../static/css/dashboard.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-store"></i>
+                <h2>Grocer<span>Ease</span></h2>
+            </div>
+            <ul class="sidebar-menu">
+                <li class="menu-item active"><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li class="menu-item"><a href="pos.html"><i class="fas fa-shopping-cart"></i> Point of Sale</a></li>
+                <li class="menu-item"><a href="products.html"><i class="fas fa-boxes"></i> Products</a></li>
+                <li class="menu-item"><a href="orders.html"><i class="fas fa-truck"></i> Orders</a></li>
+                <li class="menu-item"><a href="reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+            </ul>
+        </div>
+
+        <div class="main-content">
+            <nav class="navbar">
+                <div class="nav-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </div>
+                <div class="nav-user">
+                    <i class="fas fa-user-circle"></i>
+                    <span id="userName"></span>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </nav>
+
+            <div class="content-wrapper">
+                <div class="dashboard-container">
+                    <h1 class="page-title">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard Overview
+                    </h1>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-boxes"></i></div>
+                            <div class="stat-info">
+                                <h3>TOTAL PRODUCTS</h3>
+                                <div class="stat-number" id="totalProducts">24</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                            <div class="stat-info">
+                                <h3>TODAY'S SALES</h3>
+                                <div class="stat-number" id="todaySales">₱5,842</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="stat-info">
+                                <h3>LOW STOCK</h3>
+                                <div class="stat-number" id="lowStock">4</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-cash-register"></i></div>
+                            <div class="stat-info">
+                                <h3>TRANSACTIONS</h3>
+                                <div class="stat-number" id="transactions">37</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-charts">
+                        <div class="chart-card">
+                            <h3>Weekly Sales</h3>
+                            <canvas id="salesChart" height="200"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Top Products</h3>
+                            <div id="topProductsList"></div>
+                        </div>
+                    </div>
+
+                    <div class="quick-actions">
+                        <a href="pos.html" class="quick-action-btn">
+                            <i class="fas fa-shopping-cart"></i>
+                            <span>New Sale</span>
+                        </a>
+                        <a href="products.html" class="quick-action-btn">
+                            <i class="fas fa-plus-circle"></i>
+                            <span>Add Product</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="footer">
+                <p>&copy; 2026 GrocerEase - All rights reserved</p>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        // Check login
+        if (localStorage.getItem('loggedIn') !== 'true') {
+            window.location.href = 'accounts/login.html';
+        }
+        
+        document.getElementById('userName').innerText = localStorage.getItem('username') || 'User';
+        
+        function logout() {
+            localStorage.removeItem('loggedIn');
+            localStorage.removeItem('username');
+            window.location.href = 'accounts/login.html';
+        }
+        
+        // Sidebar toggle
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('active');
+        });
+        
+        // Top products
+        document.getElementById('topProductsList').innerHTML = `
+            <div class="top-product-item">
+                <div class="top-product-rank">1</div>
+                <div class="top-product-info">
+                    <div class="top-product-name">Rice (5kg)</div>
+                    <div class="top-product-sales">45 units sold</div>
+                </div>
+                <div class="top-product-revenue">₱11,025</div>
+            </div>
+            <div class="top-product-item">
+                <div class="top-product-rank">2</div>
+                <div class="top-product-info">
+                    <div class="top-product-name">Cooking Oil</div>
+                    <div class="top-product-sales">32 units sold</div>
+                </div>
+                <div class="top-product-revenue">₱2,864</div>
+            </div>
+            <div class="top-product-item">
+                <div class="top-product-rank">3</div>
+                <div class="top-product-info">
+                    <div class="top-product-name">Milk 1L</div>
+                    <div class="top-product-sales">28 units sold</div>
+                </div>
+                <div class="top-product-revenue">₱1,904</div>
+            </div>
+        `;
+        
+        // Chart
+        new Chart(document.getElementById('salesChart'), {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Sales (₱)',
+                    data: [3450, 4120, 5280, 6100, 5842, 6720, 4980],
+                    borderColor: '#1e6f5c',
+                    backgroundColor: 'rgba(30,111,92,0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            }
+        });
+    </script>
+</body>
+</html>
