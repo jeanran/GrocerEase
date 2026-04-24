@@ -2,6 +2,7 @@
     <div class="nav-toggle" id="sidebarToggle">
         <i class="fas fa-bars"></i>
     </div>
+
     <div class="nav-user">
         <i class="fas fa-user-circle"></i>
         <span id="userName">User</span>
@@ -10,12 +11,24 @@
 </nav>
 
 <script>
-    document.getElementById('sidebarToggle')?.addEventListener('click', function() {
-        document.getElementById('sidebar').classList.toggle('active');
-    });
-    
+document.addEventListener('DOMContentLoaded', function () {
+
+    // USER NAME
     const userName = localStorage.getItem('username');
     if (userName) {
         document.getElementById('userName').innerText = userName;
     }
+
+    // SIDEBAR TOGGLE
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+
+    if (toggleBtn && sidebar) {
+        toggleBtn.addEventListener('click', function () {
+            sidebar.classList.toggle('active');
+        });
+    }
+
+});
 </script>
+

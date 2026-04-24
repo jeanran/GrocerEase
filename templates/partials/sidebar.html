@@ -3,11 +3,69 @@
         <i class="fas fa-store"></i>
         <h2>Grocer<span>Ease</span></h2>
     </div>
+
     <ul class="sidebar-menu">
-        <li class="menu-item"><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-        <li class="menu-item"><a href="pos.html"><i class="fas fa-shopping-cart"></i> Point of Sale</a></li>
-        <li class="menu-item"><a href="products.html"><i class="fas fa-boxes"></i> Products</a></li>
-        <li class="menu-item"><a href="orders.html"><i class="fas fa-truck"></i> Orders</a></li>
-        <li class="menu-item"><a href="reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+        <li class="menu-item" id="menuDashboard">
+            <a href="{% url 'dashboard' %}">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+        </li>
+
+        <li class="menu-item" id="menuPOS">
+            <a href="{% url 'pos' %}">
+                <i class="fas fa-shopping-cart"></i> Point of Sale
+            </a>
+        </li>
+
+        <li class="menu-item" id="menuProducts">
+            <a href="{% url 'products' %}">
+                <i class="fas fa-boxes"></i> Products
+            </a>
+        </li>
+
+        <li class="menu-item" id="menuOrders">
+            <a href="{% url 'orders' %}">
+                <i class="fas fa-truck"></i> Orders
+            </a>
+        </li>
+
+        <li class="menu-item" id="menuReports">
+            <a href="{% url 'reports' %}">
+                <i class="fas fa-chart-line"></i> Reports
+            </a>
+        </li>
     </ul>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    let role = localStorage.getItem('role');
+
+    // ❌ If not logged in → go login
+    if (!role) {
+        window.location.href = '/accounts/login/';
+        return;
+    }
+
+    // ✅ ADMIN VIEW → hide POS
+    if (role === 'admin') {
+        let pos = document.getElementById('menuPOS');
+        if (pos) pos.style.display = 'none';
+    }
+
+    // ✅ CASHIER VIEW → show ONLY POS
+    if (role === 'cashier') {
+        let dashboard = document.getElementById('menuDashboard');
+        let products = document.getElementById('menuProducts');
+        let orders = document.getElementById('menuOrders');
+        let reports = document.getElementById('menuReports');
+
+        if (dashboard) dashboard.style.display = 'none';
+        if (products) products.style.display = 'none';
+        if (orders) orders.style.display = 'none';
+        if (reports) reports.style.display = 'none';
+    }
+
+});
+</script>
