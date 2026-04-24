@@ -1,298 +1,147 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GrocerEase - Orders</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="../static/css/style.css">
-    <style>
-        .orders-container {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 20px;
-            box-shadow: var(--shadow);
-        }
-        
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        
-        .btn-order {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-        
-        .stat-box {
-            background: var(--light);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        
-        .stat-box h4 {
-            font-size: 0.8rem;
-            color: var(--gray);
-            margin-bottom: 5px;
-        }
-        
-        .stat-box .value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--primary);
-        }
-        
-        .order-card {
-            background: var(--light);
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .order-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        
-        .order-id {
-            font-weight: bold;
-            color: var(--primary);
-        }
-        
-        .order-status {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-        }
-        
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        .status-delivered {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .order-details {
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .order-items {
-            flex: 1;
-        }
-        
-        .order-items ul {
-            margin-left: 20px;
-            font-size: 0.85rem;
-        }
-        
-        .order-total {
-            font-weight: bold;
-            color: var(--primary);
-        }
-        
-        .btn-complete {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 5px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-        
-        .modal-content {
-            background: white;
-            border-radius: 16px;
-            padding: 30px;
-            width: 90%;
-            max-width: 500px;
-        }
-        
-        .modal-content select {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-        }
-        
-        .modal-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <div class="app-container">
-        <div class="sidebar">
-            <div class="sidebar-logo">
-                <i class="fas fa-store"></i>
-                <h2>Grocer<span>Ease</span></h2>
-            </div>
-            <ul class="sidebar-menu">
-                <li class="menu-item"><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li class="menu-item"><a href="pos.html"><i class="fas fa-shopping-cart"></i> Point of Sale</a></li>
-                <li class="menu-item"><a href="products.html"><i class="fas fa-boxes"></i> Products</a></li>
-                <li class="menu-item active"><a href="orders.html"><i class="fas fa-truck"></i> Orders</a></li>
-                <li class="menu-item"><a href="reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-            </ul>
-        </div>
+{% extends 'base.html' %}
+{% load static %}
 
-        <div class="main-content">
-            <nav class="navbar">
-                <div class="nav-toggle" id="sidebarToggle">
-                    <i class="fas fa-bars"></i>
-                </div>
-                <div class="nav-user">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userName"></span>
-                    <button class="logout-btn" onclick="logout()">Logout</button>
-                </div>
-            </nav>
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/orders.css' %}">
+{% endblock %}
 
-            <div class="content-wrapper">
-                <div class="orders-container">
-                    <div class="page-header">
-                        <h1><i class="fas fa-truck"></i> Purchase Orders</h1>
-                        <button class="btn-order" onclick="openOrderModal()">
-                            <i class="fas fa-plus"></i> New Order
-                        </button>
-                    </div>
-                    
-                    <div class="stats-row">
-                        <div class="stat-box">
-                            <h4>Total Orders</h4>
-                            <div class="value" id="totalOrders">0</div>
-                        </div>
-                        <div class="stat-box">
-                            <h4>Pending Orders</h4>
-                            <div class="value" id="pendingOrders">0</div>
-                        </div>
-                        <div class="stat-box">
-                            <h4>Delivered Orders</h4>
-                            <div class="value" id="deliveredOrders">0</div>
-                        </div>
-                    </div>
-                    
-                    <div id="ordersList"></div>
-                </div>
-            </div>
+{% block content %}
 
-            <footer class="footer">
-                <p>&copy; 2026 GrocerEase - All rights reserved</p>
-            </footer>
-        </div>
+<style>
+    .orders-container {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 20px;
+        box-shadow: var(--shadow);
+    }
+</style>
+
+<div class="orders-container">
+
+    <div class="page-header">
+        <h1><i class="fas fa-truck"></i> Purchase Orders</h1>
+    </div>
+    
+    <div class="stats-row">
+    <div class="stat-box">
+        <h4>Total Items</h4>
+        <div class="value" id="totalItems">0</div>
+    </div>
+    <div class="stat-box">
+        <h4>Total Orders</h4>
+        <div class="value" id="totalOrders">0</div>
+    </div>
+</div>
+    
+    <div class="filters">
+    <div class="filter-group">
+        <i class="fas fa-calendar"></i>
+        <input type="date" id="filterDate">
     </div>
 
-    <!-- New Order Modal -->
-    <div id="orderModal" class="modal">
-        <div class="modal-content">
-            <h3>New Purchase Order</h3>
-            <select id="supplierSelect">
-                <option value="Supplier A">Supplier A</option>
-                <option value="Supplier B">Supplier B</option>
-                <option value="Supplier C">Supplier C</option>
-            </select>
-            <input type="text" id="orderItems" placeholder="Items (e.g., Rice 5kg x10, Oil x5)">
-            <input type="number" id="orderTotal" placeholder="Total Amount">
-            <div class="modal-actions">
-                <button class="btn-save" style="background:var(--primary); color:white; padding:10px; border:none; border-radius:8px;" onclick="createOrder()">Create Order</button>
-                <button class="btn-cancel" style="background:var(--gray); color:white; padding:10px; border:none; border-radius:8px;" onclick="closeOrderModal()">Cancel</button>
-            </div>
+    <div class="filter-group">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchId" placeholder="Search by Sale ID">
+    </div>
+</div>
+
+
+<div id="ordersList"></div>
+
+</div>
+
+<!-- Modal -->
+<div id="orderModal" class="modal">
+    <div class="modal-content">
+        <h3>New Purchase Order</h3>
+
+        <select id="supplierSelect">
+            <option value="Supplier A">Supplier A</option>
+            <option value="Supplier B">Supplier B</option>
+            <option value="Supplier C">Supplier C</option>
+        </select>
+
+        <input type="text" id="orderItems" placeholder="Items">
+        <input type="number" id="orderTotal" placeholder="Total Amount">
+
+        <div class="modal-actions">
+            <button class="btn-save" onclick="createOrder()">Create</button>
+            <button class="btn-cancel" onclick="closeOrderModal()">Cancel</button>
         </div>
     </div>
+</div>
 
     <script>
         if (localStorage.getItem('loggedIn') !== 'true') {
-            window.location.href = 'accounts/login.html';
+            window.location.href = 'accounts/login';
         }
         
         document.getElementById('userName').innerText = localStorage.getItem('username') || 'User';
-        
-        let orders = JSON.parse(localStorage.getItem('orders')) || [
-            { id: 1, supplier: "Supplier A", items: "Rice 5kg x20, Cooking Oil x10", total: 5890, status: "pending", date: "2024-01-15" },
-            { id: 2, supplier: "Supplier B", items: "Milk 1L x15, Eggs x30", total: 3240, status: "delivered", date: "2024-01-10" }
-        ];
+        let orders = JSON.parse(localStorage.getItem('transactions')) || [];
+
         
         let nextOrderId = 3;
         
         function saveOrders() {
             localStorage.setItem('orders', JSON.stringify(orders));
         }
-        
+        document.getElementById('filterDate').addEventListener('change', renderOrders);
+document.getElementById('searchId').addEventListener('input', renderOrders);
         function renderOrders() {
-            let total = orders.length;
-            let pending = orders.filter(o => o.status === 'pending').length;
-            let delivered = orders.filter(o => o.status === 'delivered').length;
-            
-            document.getElementById('totalOrders').innerText = total;
-            document.getElementById('pendingOrders').innerText = pending;
-            document.getElementById('deliveredOrders').innerText = delivered;
-            
-            document.getElementById('ordersList').innerHTML = orders.map(order => `
-                <div class="order-card">
-                    <div class="order-header">
-                        <span class="order-id">Order #${order.id}</span>
-                        <span class="order-status status-${order.status}">${order.status.toUpperCase()}</span>
-                    </div>
-                    <div class="order-details">
-                        <div class="order-items">
-                            <strong>Supplier:</strong> ${order.supplier}<br>
-                            <strong>Items:</strong> ${order.items}<br>
-                            <strong>Date:</strong> ${order.date}
-                        </div>
-                        <div class="order-total">
-                            Total: ₱${order.total.toFixed(2)}
-                        </div>
-                    </div>
-                    ${order.status === 'pending' ? 
-                        `<div style="margin-top: 10px;">
-                            <button class="btn-complete" onclick="completeOrder(${order.id})">Mark as Delivered</button>
-                        </div>` : ''
-                    }
-                </div>
-            `).join('');
+
+    let filterDate = document.getElementById('filterDate').value;
+    let searchId = document.getElementById('searchId').value.toLowerCase();
+
+    let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+
+    let filtered = transactions.filter(t => {
+        let matchDate = true;
+        let matchId = true;
+
+        if (filterDate) {
+            let tDate = new Date(t.date).toISOString().split('T')[0];
+            matchDate = tDate === filterDate;
         }
-        
+
+        if (searchId) {
+            matchId = t.id.toString().includes(searchId);
+        }
+
+        return matchDate && matchId;
+    });
+
+    // ✅ TOTAL ORDERS
+document.getElementById('totalOrders').innerText = filtered.length;
+
+// ✅ TOTAL ITEMS
+let totalItems = filtered.reduce((sum, order) => {
+    return sum + order.items.reduce((s, item) => s + item.qty, 0);
+}, 0);
+
+document.getElementById('totalItems').innerText = totalItems;
+
+    // ✅ RENDER LIST
+    document.getElementById('ordersList').innerHTML = filtered.map(order => `
+        <div class="order-card">
+            <div class="order-header">
+                <span class="order-id">Sale #${order.id}</span>
+                <span class="order-status status-delivered">COMPLETED</span>
+            </div>
+
+            <div class="order-details">
+                <div class="order-items">
+                    <strong>Date:</strong> ${new Date(order.date).toLocaleString()}<br>
+                    <strong>Items:</strong> ${order.items.map(i => i.name + ' x' + i.qty).join(', ')}
+                </div>
+
+                <div class="order-total">
+                    Total: ₱${order.total.toFixed(2)}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+            
         function openOrderModal() {
             document.getElementById('orderModal').style.display = 'flex';
         }
@@ -304,44 +153,10 @@
             document.getElementById('orderTotal').value = '';
         }
         
-        function createOrder() {
-            let supplier = document.getElementById('supplierSelect').value;
-            let items = document.getElementById('orderItems').value;
-            let total = parseFloat(document.getElementById('orderTotal').value);
-            
-            if (!items || isNaN(total)) {
-                alert('Please fill all fields');
-                return;
-            }
-            
-            let today = new Date().toISOString().split('T')[0];
-            orders.unshift({
-                id: nextOrderId++,
-                supplier: supplier,
-                items: items,
-                total: total,
-                status: 'pending',
-                date: today
-            });
-            
-            saveOrders();
-            renderOrders();
-            closeOrderModal();
-        }
-        
-        function completeOrder(id) {
-            let order = orders.find(o => o.id === id);
-            if (order) {
-                order.status = 'delivered';
-                saveOrders();
-                renderOrders();
-            }
-        }
-        
         function logout() {
             localStorage.removeItem('loggedIn');
             localStorage.removeItem('username');
-            window.location.href = 'accounts/login.html';
+            window.location.href = '/accounts/login/';
         }
         
         document.getElementById('sidebarToggle').addEventListener('click', function() {
@@ -350,5 +165,4 @@
         
         renderOrders();
     </script>
-</body>
-</html>
+{% endblock %}
