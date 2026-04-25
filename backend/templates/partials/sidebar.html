@@ -34,37 +34,37 @@
                 <i class="fas fa-chart-line"></i> Reports
             </a>
         </li>
+        <li class="menu-item" id="menuUsers">
+    <a href="{% url 'users' %}">
+        <i class="fas fa-users"></i> Manage Users
+    </a>
+</li>
     </ul>
 </div>
-
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-    let role = localStorage.getItem('role');
+    let role = '{{ request.session.role }}';
 
-    // ❌ If not logged in → go login
-    if (!role) {
-        window.location.href = '/accounts/login/';
-        return;
-    }
-
-    // ✅ ADMIN VIEW → hide POS
+    // ADMIN VIEW → hide POS
     if (role === 'admin') {
         let pos = document.getElementById('menuPOS');
         if (pos) pos.style.display = 'none';
     }
 
-    // ✅ CASHIER VIEW → show ONLY POS
+    // CASHIER VIEW → show ONLY POS
     if (role === 'cashier') {
         let dashboard = document.getElementById('menuDashboard');
         let products = document.getElementById('menuProducts');
         let orders = document.getElementById('menuOrders');
         let reports = document.getElementById('menuReports');
+        let users = document.getElementById('menuUsers');
 
         if (dashboard) dashboard.style.display = 'none';
         if (products) products.style.display = 'none';
         if (orders) orders.style.display = 'none';
         if (reports) reports.style.display = 'none';
+        if (users) users.style.display = 'none';
     }
 
 });

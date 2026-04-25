@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: grocerease-backend
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn grocerease.wsgi:application"
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+      
+      - key: SUPABASE_DB_HOST
+        sync: false
+      - key: SUPABASE_DB_NAME
+        value: postgres
+      - key: SUPABASE_DB_USER
+        value: postgres
+      - key: SUPABASE_DB_PASSWORD
+        sync: false
+      - key: SUPABASE_DB_PORT
+        value: 5432

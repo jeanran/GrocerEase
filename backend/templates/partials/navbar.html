@@ -13,22 +13,16 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-    // USER NAME
-    const userName = localStorage.getItem('username');
+    // Get username from Django session instead of localStorage
+    let userName = '{{ request.session.username }}';
     if (userName) {
         document.getElementById('userName').innerText = userName;
     }
 
-    // SIDEBAR TOGGLE
-    const toggleBtn = document.getElementById('sidebarToggle');
-    const sidebar = document.getElementById('sidebar');
-
-    if (toggleBtn && sidebar) {
-        toggleBtn.addEventListener('click', function () {
-            sidebar.classList.toggle('active');
-        });
-    }
-
 });
-</script>
 
+// Logout via Django
+function logout() {
+    window.location.href = '/logout/';
+}
+</script>

@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/orders.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .orders-container {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 20px;
+        box-shadow: var(--shadow);
+    }
+</style>
+
+<div class="orders-container">
+
+    <div class="page-header">
+        <h1><i class="fas fa-truck"></i> Purchase Orders</h1>
+    </div>
+    
+    <div class="stats-row">
+    <div class="stat-box">
+        <h4>Total Items</h4>
+        <div class="value" id="totalItems">0</div>
+    </div>
+    <div class="stat-box">
+        <h4>Total Orders</h4>
+        <div class="value" id="totalOrders">0</div>
+    </div>
+</div>
+    
+    <div class="filters">
+    <div class="filter-group">
+        <i class="fas fa-calendar"></i>
+        <input type="date" id="filterDate">
+    </div>
+
+    <div class="filter-group">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchId" placeholder="Search by Sale ID">
+    </div>
+</div>
+
+
+<div id="ordersList"></div>
+
+</div>
+
+<!-- Modal -->
+<div id="orderModal" class="modal">
+    <div class="modal-content">
+        <h3>New Purchase Order</h3>
+
+        <select id="supplierSelect">
+            <option value="Supplier A">Supplier A</option>
+            <option value="Supplier B">Supplier B</option>
+            <option value="Supplier C">Supplier C</option>
+        </select>
+
+        <input type="text" id="orderItems" placeholder="Items">
+        <input type="number" id="orderTotal" placeholder="Total Amount">
+
+        <div class="modal-actions">
+            <button class="btn-save" onclick="createOrder()">Create</button>
+            <button class="btn-cancel" onclick="closeOrderModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+    <script>
+    
+
+    // Username from Django session
+    let userEl = document.getElementById('userName');
+    if (userEl) userEl.innerText = '{{ username }}';
+
+    let orders = JSON.parse(localStorage.getItem('transactions')) || [];
+    let nextOrderId = 3;
+
+    function saveOrders() {
+        localStorage.setItem('orders', JSON.stringify(orders));
+    }
+
+    document.getElementById('filterDate').addEventListener('change', renderOrders);
+    document.getElementById('searchId').addEventListener('input', renderOrders);
+
+    function renderOrders() {
+        let filterDate = document.getElementById('filterDate').value;
+        let searchId = document.getElementById('searchId').value.toLowerCase();
+
+        let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+
+        let filtered = transactions.filter(t => {
+            let matchDate = true;
+            let matchId = true;
+
+            if (filterDate) {
+                let tDate = new Date(t.date).toISOString().split('T')[0];
+                matchDate = tDate === filterDate;
+            }
+
+            if (searchId) {
+                matchId = t.id.toString().includes(searchId);
+            }
+
+            return matchDate && matchId;
+        });
+
+        // TOTAL ORDERS
+        document.getElementById('totalOrders').innerText = filtered.length;
+
+        // TOTAL ITEMS
+        let totalItems = filtered.reduce((sum, order) => {
+            return sum + order.items.reduce((s, item) => s + item.qty, 0);
+        }, 0);
+        document.getElementById('totalItems').innerText = totalItems;
+
+        // RENDER LIST
+        document.getElementById('ordersList').innerHTML = filtered.length === 0
+            ? '<p style="text-align:center; color:#95a5a6; padding:40px;">No orders found.</p>'
+            : filtered.map(order => `
+                <div class="order-card">
+                    <div class="order-header">
+                        <span class="order-id">Sale #${order.id}</span>
+                        <span class="order-status status-delivered">COMPLETED</span>
+                    </div>
+                    <div class="order-details">
+                        <div class="order-items">
+                            <strong>Date:</strong> ${new Date(order.date).toLocaleString()}<br>
+                            <strong>Items:</strong> ${order.items.map(i => i.name + ' x' + i.qty).join(', ')}
+                        </div>
+                        <div class="order-total">
+                            Total: ₱${order.total.toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+    }
+
+    function openOrderModal() {
+        document.getElementById('orderModal').style.display = 'flex';
+    }
+
+    function closeOrderModal() {
+        document.getElementById('orderModal').style.display = 'none';
+        document.getElementById('supplierSelect').value = 'Supplier A';
+        document.getElementById('orderItems').value = '';
+        document.getElementById('orderTotal').value = '';
+    }
+
+    
+    function logout() {
+        window.location.href = '/logout/';
+    }
+
+    renderOrders();
+</script>
+{% endblock %}

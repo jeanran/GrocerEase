@@ -1,0 +1,216 @@
+products.html
+
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<link rel="stylesheet" href="{% static 'css/products.css' %}">
+
+<div class="products-container">
+
+    <div class="page-header">
+        <h1><i class="fas fa-boxes"></i> Product Inventory</h1>
+        <button class="btn-add" onclick="openAddModal()">
+            <i class="fas fa-plus"></i> Add Product
+        </button>
+    </div>
+    
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search products...">
+    </div>
+    
+    <table class="products-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="productsTableBody"></tbody>
+    </table>
+
+</div>
+
+<!-- Modal -->
+<div id="productModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Add New Product</h3>
+
+        <input type="hidden" id="productId">
+        <input type="text" id="productName" placeholder="Product Name">
+
+        <select id="productCategory">
+            <option value="Rice & Grains">Rice & Grains</option>
+            <option value="Oils & Cooking">Oils & Cooking</option>
+            <option value="Dairy & Eggs">Dairy & Eggs</option>
+            <option value="Beverages">Beverages</option>
+            <option value="Canned Goods">Canned Goods</option>
+            <option value="Bakery">Bakery</option>
+        </select>
+
+        <input type="number" id="productPrice" placeholder="Price">
+        <input type="number" id="productStock" placeholder="Stock Quantity">
+
+        <div class="modal-actions">
+            <button class="btn-save" onclick="saveProduct()">Save</button>
+            <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allProducts = [];
+    let isEditing = false;
+    let editingId = null;
+
+    // ── LOAD FROM SUPABASE via Django API ──
+    async function loadProducts() {
+        try {
+            const res = await fetch('/api/products/');
+            const data = await res.json();
+            allProducts = data.products || [];
+            renderProducts(allProducts);
+        } catch (err) {
+            alert('Failed to load products: ' + err.message);
+        }
+    }
+
+    function renderProducts(products) {
+        let search = document.getElementById('searchInput').value.toLowerCase();
+        let filtered = products.filter(p => p.name.toLowerCase().includes(search));
+
+        document.getElementById('productsTableBody').innerHTML = filtered.length === 0
+            ? '<tr><td colspan="7" style="text-align:center;padding:30px;color:#95a5a6;">No products found.</td></tr>'
+            : filtered.map((p, i) => {
+                let statusClass = '', statusText = '';
+                if (p.stock === 0) {
+                    statusClass = 'status-out-stock'; statusText = 'Out of Stock';
+                } else if (p.stock <= 5) {
+                    statusClass = 'status-low-stock'; statusText = 'Low Stock';
+                } else {
+                    statusClass = 'status-in-stock'; statusText = 'In Stock';
+                }
+                return `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td>${p.name}</td>
+                        <td>${p.category}</td>
+                        <td>₱${parseFloat(p.price).toFixed(2)}</td>
+                        <td>${p.stock}</td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td class="action-buttons">
+                            <button class="btn-edit" onclick="openEditModal('${p.product_id}', '${p.name}', '${p.category}', ${p.price}, ${p.stock})">Edit</button>
+                            <button class="btn-delete" onclick="deleteProduct('${p.product_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+    }
+
+    function openAddModal() {
+        isEditing = false;
+        editingId = null;
+        document.getElementById('modalTitle').innerText = 'Add New Product';
+        document.getElementById('productId').value = '';
+        document.getElementById('productName').value = '';
+        document.getElementById('productCategory').value = 'Rice & Grains';
+        document.getElementById('productPrice').value = '';
+        document.getElementById('productStock').value = '';
+        document.getElementById('productModal').style.display = 'flex';
+    }
+
+    function openEditModal(id, name, category, price, stock) {
+        isEditing = true;
+        editingId = id;
+        document.getElementById('modalTitle').innerText = 'Edit Product';
+        document.getElementById('productId').value = id;
+        document.getElementById('productName').value = name;
+        document.getElementById('productCategory').value = category;
+        document.getElementById('productPrice').value = price;
+        document.getElementById('productStock').value = stock;
+        document.getElementById('productModal').style.display = 'flex';
+    }
+
+    // keep old editProduct name working too
+    function editProduct(id) {
+        let p = allProducts.find(p => p.product_id === id);
+        if (p) openEditModal(p.product_id, p.name, p.category, p.price, p.stock);
+    }
+
+    async function saveProduct() {
+        let name = document.getElementById('productName').value.trim();
+        let category = document.getElementById('productCategory').value;
+        let price = parseFloat(document.getElementById('productPrice').value);
+        let stock = parseInt(document.getElementById('productStock').value);
+
+        if (!name || isNaN(price) || isNaN(stock)) {
+            alert('Please fill all fields correctly.');
+            return;
+        }
+
+        let url = isEditing ? `/api/products/${editingId}/edit/` : '/api/products/add/';
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({ name, category, price, stock }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeModal();
+                loadProducts();
+            } else {
+                alert(data.message || 'Something went wrong.');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    async function deleteProduct(id) {
+        if (!confirm('Are you sure you want to delete this product?')) return;
+        try {
+            const res = await fetch(`/api/products/${id}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            });
+            const data = await res.json();
+            if (data.success) {
+                loadProducts();
+            } else {
+                alert(data.message || 'Failed to delete.');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('productModal').style.display = 'none';
+    }
+
+    function getCookie(name) {
+        let value = `; ${document.cookie}`;
+        let parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    function logout() {
+        window.location.href = '/logout/';
+    }
+
+    document.getElementById('searchInput').addEventListener('input', () => renderProducts(allProducts));
+
+    loadProducts();
+</script>
+{% endblock %}

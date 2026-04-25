@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="dashboard-container">
+
+    <h1 class="page-title">
+        <i class="fas fa-tachometer-alt"></i> Dashboard Overview
+    </h1>
+
+    <div class="stats-grid">
+
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-boxes"></i>
+            </div>
+            <div class="stat-info">
+                <h3>TOTAL PRODUCTS</h3>
+                <div class="stat-number" id="totalProducts">0</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="stat-info">
+                <h3>TODAY'S SALES</h3>
+                <div class="stat-number" id="todaySales">0</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="stat-info">
+                <h3>LOW STOCK</h3>
+                <div class="stat-number" id="lowStock">0</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-cash-register"></i>
+            </div>
+            <div class="stat-info">
+                <h3>TRANSACTIONS</h3>
+                <div class="stat-number" id="totalTransactions">0</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="dashboard-charts">
+
+        <!-- Weekly Sales -->
+        <div class="chart-card">
+            <h3>Weekly Sales</h3>
+            <canvas id="salesChart" height="200"></canvas>
+        </div>
+
+        <!-- Monthly Sales -->
+        <div class="chart-card">
+            <h3>Monthly Sales</h3>
+
+            <div style="margin-bottom: 10px;">
+                <select id="monthSelector">
+                    <option value="0">January</option>
+                    <option value="1">February</option>
+                    <option value="2">March</option>
+                    <option value="3">April</option>
+                    <option value="4">May</option>
+                    <option value="5">June</option>
+                    <option value="6">July</option>
+                    <option value="7">August</option>
+                    <option value="8">September</option>
+                    <option value="9">October</option>
+                    <option value="10">November</option>
+                    <option value="11">December</option>
+                </select>
+            </div>
+
+            <canvas id="monthlyChart" height="200"></canvas>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions-wrapper">
+            <div class="quick-actions">
+
+                <a href="{% url 'pos' %}" class="quick-action-btn">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>New Sale</span>
+                </a>
+
+                <a href="{% url 'products' %}" class="quick-action-btn">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>Add Product</span>
+                </a>
+
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+document.addEventListener('DOMContentLoaded', async function () {
+
+    let weeklyChart = null;
+    let monthlyChart = null;
+
+    // ── STATS ──────────────────────────────────────────
+    async function loadStats() {
+        try {
+            const res = await fetch('/api/dashboard/stats/');
+            const data = await res.json();
+
+            document.getElementById('totalProducts').innerText = data.total_products;
+            document.getElementById('lowStock').innerText = data.low_stock;
+            document.getElementById('totalTransactions').innerText = data.total_transactions;
+            document.getElementById('todaySales').innerText = '₱ ' + data.today_sales.toFixed(2);
+        } catch (err) {
+            console.error('Failed to load stats:', err);
+        }
+    }
+
+    // ── CHARTS ─────────────────────────────────────────
+    async function loadCharts(selectedMonth = null) {
+        try {
+            const res = await fetch('/api/dashboard/charts/');
+            const data = await res.json();
+
+            // Set month selector to current month
+            let monthSelector = document.getElementById('monthSelector');
+            if (monthSelector && selectedMonth === null) {
+                monthSelector.value = data.current_month;
+            }
+
+            // Weekly Sales Chart
+            let chartEl = document.getElementById('salesChart');
+            if (chartEl) {
+                if (weeklyChart) weeklyChart.destroy();
+                weeklyChart = new Chart(chartEl, {
+                    type: 'line',
+                    data: {
+                        labels: data.weekly.map(d => d.label),
+                        datasets: [{
+                            label: 'Sales (₱)',
+                            data: data.weekly.map(d => d.total),
+                            borderColor: '#1e6f5c',
+                            backgroundColor: 'rgba(30,111,92,0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+
+            // Monthly Sales Chart
+            renderMonthlyChart(data.monthly, selectedMonth ?? data.current_month);
+
+        } catch (err) {
+            console.error('Failed to load charts:', err);
+        }
+    }
+
+    async function loadMonthlyByMonth(month) {
+        try {
+            const res = await fetch(`/api/dashboard/charts/?month=${month + 1}`);
+            const data = await res.json();
+            renderMonthlyChart(data.monthly, month);
+        } catch (err) {
+            console.error('Failed to load monthly chart:', err);
+        }
+    }
+
+    function renderMonthlyChart(monthlyData, month) {
+        let monthlyEl = document.getElementById('monthlyChart');
+        if (!monthlyEl) return;
+
+        if (monthlyChart) monthlyChart.destroy();
+
+        monthlyChart = new Chart(monthlyEl, {
+            type: 'bar',
+            data: {
+                labels: monthlyData.map(d => d.day),
+                datasets: [{
+                    label: 'Daily Sales (₱)',
+                    data: monthlyData.map(d => d.total),
+                    backgroundColor: 'rgba(30,111,92,0.5)',
+                    borderColor: '#1e6f5c',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    // Month selector change
+    let monthSelector = document.getElementById('monthSelector');
+    if (monthSelector) {
+        monthSelector.addEventListener('change', function () {
+            loadMonthlyByMonth(parseInt(this.value));
+        });
+    }
+
+    // Username from Django session
+    let userEl = document.getElementById('userName');
+    if (userEl) userEl.innerText = '{{ username }}';
+
+    // Sidebar toggle
+    let toggleBtn = document.getElementById('sidebarToggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function () {
+            document.querySelector('.sidebar').classList.toggle('active');
+        });
+    }
+
+    // Logout
+    window.logout = function() {
+        window.location.href = '/logout/';
+    }
+
+    // Init
+    await loadStats();
+    await loadCharts();
+
+});
+</script>
+
+{% endblock %}

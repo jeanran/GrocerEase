@@ -63,6 +63,10 @@
             border-radius: 30px;
             font-size: 1rem;
         }
+        .form-group input:focus {
+            outline: none;
+            border-color: #1e6f5c;
+        }
         .login-btn {
             width: 100%;
             padding: 14px;
@@ -75,14 +79,6 @@
             cursor: pointer;
         }
         .login-btn:hover { background: #0e5545; }
-        .demo-credentials {
-            margin-top: 25px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            font-size: 0.8rem;
-            color: #95a5a6;
-        }
-        .demo-credentials strong { color: #1e6f5c; }
         .error-message {
             background: #f8d7da;
             color: #721c24;
@@ -91,9 +87,12 @@
             margin-bottom: 20px;
             display: none;
         }
+        .error-message.show {
+            display: block;
+        }
     </style>
 </head>
-    <body>
+<body>
     <div class="login-container">
         <div class="login-card">
             <div class="login-logo">
@@ -101,58 +100,34 @@
             </div>
             <h1>Grocer<span>Ease</span></h1>
             <p>Sales & Inventory System</p>
-            
-            <div class="error-message" id="errorMsg">
-                <i class="fas fa-exclamation-circle"></i> Invalid username or password
+
+            <!-- Django messages (server-side errors) -->
+            {% if messages %}
+            <div class="error-message show">
+                {% for message in messages %}
+                    <i class="fas fa-exclamation-circle"></i> {{ message }}
+                {% endfor %}
             </div>
-            
-            <form id="loginForm">
+            {% endif %}
+
+            <!-- No more id="loginForm", now uses method POST -->
+            <form method="POST" action="{% url 'login' %}">
+                {% csrf_token %}
                 <div class="form-group">
                     <i class="fas fa-user"></i>
-                    <input type="text" id="username" placeholder="Username" required>
+                    <input type="text" name="username" placeholder="Username" required>
                 </div>
                 <div class="form-group">
                     <i class="fas fa-lock"></i>
-                    <input type="password" id="password" placeholder="Password" required>
+                    <input type="password" name="password" placeholder="Password" required>
                 </div>
                 <button type="submit" class="login-btn">Login</button>
             </form>
-        
+
         </div>
     </div>
 
-    <script>
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-    e.preventDefault();
+    <!-- No more JavaScript needed! Django handles everything -->
 
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-
-    if (username === 'admin' && password === 'admin123') {
-
-        localStorage.setItem('loggedIn', 'true');
-        localStorage.setItem('username', username);
-        localStorage.setItem('role', 'admin');
-
-        window.location.href = '/dashboard/';
-
-    } else if (username === 'cashier' && password === 'cashier123') {
-
-        localStorage.setItem('loggedIn', 'true');
-        localStorage.setItem('username', username);
-        localStorage.setItem('role', 'cashier');
-
-        window.location.href = '/pos/';
-
-    } else {
-
-        document.getElementById('errorMsg').style.display = 'block';
-
-        setTimeout(() => {
-            document.getElementById('errorMsg').style.display = 'none';
-        }, 3000);
-    }
-});
-</script>
 </body>
 </html>

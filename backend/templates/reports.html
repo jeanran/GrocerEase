@@ -72,20 +72,13 @@
 </div>
 
 <script>
+    
 
-    // =========================
-    // AUTH CHECK
-    // =========================
-    if (localStorage.getItem('loggedIn') !== 'true') {
-        window.location.href = '/accounts/login/';
-    }
+    // Username from Django session
+    let userEl = document.getElementById('userName');
+    if (userEl) userEl.innerText = '{{ username }}';
 
-    document.getElementById('userName').innerText =
-        localStorage.getItem('username') || 'User';
-
-    // =========================
-    // DATA LOAD
-    // =========================
+    // DATA — keeping localStorage for now, will connect to Supabase later
     let products = JSON.parse(localStorage.getItem('products')) || [
         { id: 1, name: "Rice (5kg)", price: 245, stock: 12, category: "Rice & Grains" },
         { id: 2, name: "Cooking Oil 1L", price: 89.5, stock: 8, category: "Oils & Cooking" },
@@ -101,39 +94,25 @@
 
     let salesChart = null;
 
-    // =========================
     // TAB SWITCH
-    // =========================
     function switchTab(tab) {
-
-        document.querySelectorAll('.tab-btn').forEach(btn =>
-            btn.classList.remove('active')
-        );
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
         if (tab === 'sales') {
-
             document.querySelector('.tab-btn:first-child').classList.add('active');
             document.getElementById('salesPanel').classList.add('active');
             document.getElementById('inventoryPanel').classList.remove('active');
-
             loadSalesReport();
-
         } else {
-
             document.querySelector('.tab-btn:last-child').classList.add('active');
             document.getElementById('inventoryPanel').classList.add('active');
             document.getElementById('salesPanel').classList.remove('active');
-
             loadInventoryReport();
         }
     }
 
-    // =========================
     // SALES REPORT
-    // =========================
     function loadSalesReport() {
-
-        // SUMMARY
         let totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
         let totalTrans = transactions.length;
         let avgSale = totalTrans ? totalSales / totalTrans : 0;
@@ -142,44 +121,32 @@
         document.getElementById('totalTransactions').innerText = totalTrans;
         document.getElementById('avgSale').innerText = '₱' + avgSale.toFixed(2);
 
-        // PRODUCT-BASED SALES
         let productMap = {};
-
         transactions.forEach(t => {
             (t.items || []).forEach(item => {
-
                 if (!productMap[item.name]) {
                     productMap[item.name] = { qty: 0, revenue: 0 };
                 }
-
                 productMap[item.name].qty += item.qty;
                 productMap[item.name].revenue += item.qty * item.price;
             });
         });
 
         let data = Object.entries(productMap).map(([name, val]) => ({
-            name: name,
-            qty: val.qty,
-            revenue: val.revenue
+            name, qty: val.qty, revenue: val.revenue
         }));
-
-        // sort by most sold
         data.sort((a, b) => b.qty - a.qty);
 
-        // CHART
         let labels = data.slice(0, 5).map(p => p.name);
         let chartData = data.slice(0, 5).map(p => p.revenue);
-
         let chartEl = document.getElementById('salesChart');
 
         if (chartEl) {
-
             if (salesChart) salesChart.destroy();
-
             salesChart = new Chart(chartEl, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels,
                     datasets: [{
                         label: 'Top Products (₱)',
                         data: chartData,
@@ -194,7 +161,6 @@
             });
         }
 
-        // TABLE
         document.getElementById('salesTableBody').innerHTML = data.map(p => `
             <tr>
                 <td>${p.name}</td>
@@ -205,11 +171,8 @@
         `).join('');
     }
 
-    // =========================
     // INVENTORY REPORT
-    // =========================
     function loadInventoryReport() {
-
         let totalProducts = products.length;
         let totalStockValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
         let lowStock = products.filter(p => p.stock <= 5).length;
@@ -230,76 +193,37 @@
         `).join('');
     }
 
-    // =========================
     // PRINT
-    // =========================
     function printReport(type) {
-
         let printContent = document
             .getElementById(type === 'sales' ? 'salesPanel' : 'inventoryPanel')
             .cloneNode(true);
 
-        let originalTitle = document.title;
-        document.title = `${type.toUpperCase()} Report - GrocerEase`;
-
         let printWindow = window.open('', '_blank');
-
         printWindow.document.write(`
             <html>
                 <head>
                     <title>${type.toUpperCase()} Report</title>
-                    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
                     <style>
                         body { font-family: Arial, sans-serif; padding: 20px; }
                         table { width: 100%; border-collapse: collapse; }
                         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                         th { background: #f5f5f5; }
-                        .summary-card {
-                            display: inline-block;
-                            width: 30%;
-                            margin: 10px;
-                            padding: 10px;
-                            border: 1px solid #ddd;
-                            text-align: center;
-                        }
                     </style>
                 </head>
                 <body>${printContent.innerHTML}</body>
             </html>
         `);
-
         printWindow.document.close();
         printWindow.print();
-
-        document.title = originalTitle;
     }
 
-    // =========================
-    // LOGOUT
-    // =========================
+    
     function logout() {
-        localStorage.removeItem('loggedIn');
-        localStorage.removeItem('username');
-        window.location.href = '/accounts/login/';
+        window.location.href = '/logout/';
     }
-
-    // =========================
-    // SIDEBAR
-    // =========================
-    document.getElementById('sidebarToggle').addEventListener('click', function () {
-        document.querySelector('.sidebar').classList.toggle('active');
-    });
-
-    // =========================
-    // INIT
-    // =========================
-    let today = new Date().toISOString().split('T')[0];
-    let lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split('T')[0];
 
     loadSalesReport();
-
 </script>
 
 {% endblock %}
