@@ -1,303 +1,247 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GrocerEase - Point of Sale</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="../static/css/style.css">
-    <link rel="stylesheet" href="../static/css/pos.css">
-</head>
-<body>
-    <div class="app-container">
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <div class="sidebar-logo">
-                <i class="fas fa-store"></i>
-                <h2>Grocer<span>Ease</span></h2>
-            </div>
-            <ul class="sidebar-menu">
-                <li class="menu-item"><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li class="menu-item active"><a href="pos.html"><i class="fas fa-shopping-cart"></i> Point of Sale</a></li>
-                <li class="menu-item"><a href="products.html"><i class="fas fa-boxes"></i> Products</a></li>
-                <li class="menu-item"><a href="orders.html"><i class="fas fa-truck"></i> Orders</a></li>
-                <li class="menu-item"><a href="reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-            </ul>
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pos.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="pos-container">
+
+    <!-- Products Panel -->
+    <div class="pos-products">
+        <div class="pos-header">
+            <h2><i class="fas fa-search"></i> Select Products</h2>
+            <input type="text" id="searchInput" class="product-search" placeholder="Search products...">
+            
+            <select id="categoryFilter" class="category-filter">
+                <option value="all">All Categories</option>
+                <option value="Rice & Grains">Rice & Grains</option>
+                <option value="Oils & Cooking">Oils & Cooking</option>
+                <option value="Dairy & Eggs">Dairy & Eggs</option>
+                <option value="Beverages">Beverages</option>
+                <option value="Canned Goods">Canned Goods</option>
+            </select>
         </div>
 
-        <div class="main-content">
-            <!-- Navbar -->
-            <nav class="navbar">
-                <div class="nav-toggle" id="sidebarToggle">
-                    <i class="fas fa-bars"></i>
-                </div>
-                <div class="nav-user">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userName"></span>
-                    <button class="logout-btn" onclick="logout()">Logout</button>
-                </div>
-            </nav>
+        <div class="products-grid" id="productsGrid"></div>
+    </div>
 
-            <div class="content-wrapper">
-                <div class="pos-container">
-                    <!-- Products Panel -->
-                    <div class="pos-products">
-                        <div class="pos-header">
-                            <h2><i class="fas fa-search"></i> Select Products</h2>
-                            <input type="text" id="searchInput" class="product-search" placeholder="Search products...">
-                            <select id="categoryFilter" class="category-filter">
-                                <option value="all">All Categories</option>
-                                <option value="Rice & Grains">Rice & Grains</option>
-                                <option value="Oils & Cooking">Oils & Cooking</option>
-                                <option value="Dairy & Eggs">Dairy & Eggs</option>
-                                <option value="Beverages">Beverages</option>
-                                <option value="Canned Goods">Canned Goods</option>
-                            </select>
-                        </div>
-                        <div class="products-grid" id="productsGrid"></div>
-                    </div>
-
-                    <!-- Cart Panel -->
-                    <div class="pos-cart">
-                        <div class="cart-header">
-                            <h2><i class="fas fa-shopping-cart"></i> Current Sale</h2>
-                            <button class="btn-clear" id="clearCartBtn"><i class="fas fa-trash"></i> Clear Cart</button>
-                        </div>
-                        
-                        <div class="cart-items">
-                            <table class="cart-table">
-                                <thead>
-                                    <tr>
-                                        <th>Item</th>
-                                        <th>Qty</th>
-                                        <th>Price</th>
-                                        <th>Subtotal</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="cartBody"></tbody>
-                            </table>
-                        </div>
-                        
-                        <div class="cart-summary">
-                            <div class="summary-row">
-                                <span>Subtotal:</span>
-                                <span id="subtotal">₱0.00</span>
-                            </div>
-                            <div class="summary-row">
-                                <span>Tax (12%):</span>
-                                <span id="tax">₱0.00</span>
-                            </div>
-                            <div class="summary-row total">
-                                <span>Total:</span>
-                                <span id="totalAmount">₱0.00</span>
-                            </div>
-                        </div>
-                        
-                        <div class="payment-section">
-                            <div class="payment-input">
-                                <label>Amount Received:</label>
-                                <input type="number" id="amountReceived" placeholder="0.00">
-                            </div>
-                            <div class="change-due">
-                                <label>Change:</label>
-                                <span id="changeDue">₱0.00</span>
-                            </div>
-                            <button class="btn-checkout" id="checkoutBtn">
-                                <i class="fas fa-check-circle"></i> Complete Sale
-                            </button>
-                        </div>
-                    </div>
-                </div>
+    <!-- Cart Panel -->
+    <div class="pos-cart">
+        <div class="cart-header">
+            <h2><i class="fas fa-shopping-cart"></i> Current Sale</h2>
+            <button class="btn-clear" id="clearCartBtn">
+                <i class="fas fa-trash"></i> Clear Cart
+            </button>
+        </div>
+        
+        <div class="cart-items">
+            <table class="cart-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Subtotal</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="cartBody"></tbody>
+            </table>
+        </div>
+        
+        <div class="cart-summary">
+            <div class="summary-row">
+                <span>Subtotal:</span>
+                <span id="subtotal">₱0.00</span>
+            </div>
+            <div class="summary-row">
+                <span>Tax (12%):</span>
+                <span id="tax">₱0.00</span>
+            </div>
+            <div class="summary-row total">
+                <span>Total:</span>
+                <span id="totalAmount">₱0.00</span>
+            </div>
+        </div>
+        
+        <div class="payment-section">
+            <div class="payment-input">
+                <label>Amount Received:</label>
+                <input type="number" id="amountReceived" placeholder="0.00">
+            </div>
+            <div class="change-due">
+                <label>Change:</label>
+                <span id="changeDue">₱0.00</span>
             </div>
 
-            <footer class="footer">
-                <p>&copy; 2026 GrocerEase - All rights reserved</p>
-            </footer>
+            <button class="btn-checkout" id="checkoutBtn">
+                <i class="fas fa-check-circle"></i> Complete Sale
+            </button>
         </div>
     </div>
 
-    <script>
-        // Check login
-        if (localStorage.getItem('loggedIn') !== 'true') {
-            window.location.href = 'accounts/login.html';
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    let products = JSON.parse(localStorage.getItem('products')) || [];
+
+
+    let cart = [];
+
+    function renderProducts() {
+        let search = document.getElementById('searchInput').value.toLowerCase();
+        let category = document.getElementById('categoryFilter').value;
+
+        let filtered = products.filter(p =>
+    p.stock > 0 && // ✅ hide out-of-stock
+    p.name.toLowerCase().includes(search) &&
+    (category === 'all' || p.category === category)
+);
+
+        document.getElementById('productsGrid').innerHTML = filtered.map(p => `
+            <div class="product-card" onclick="addToCart(${p.id})">
+                <h4>${p.name}</h4>
+                <div class="product-price">₱${p.price.toFixed(2)}</div>
+                <div class="product-stock">Stock: ${p.stock}</div>
+            </div>
+        `).join('');
+    }
+
+    function addToCart(id) {
+        let product = products.find(p => p.id === id);
+        if (product.stock <= 0) return alert('Out of stock!');
+
+        let existing = cart.find(i => i.id === id);
+        if (existing) existing.qty++;
+        else cart.push({ ...product, qty: 1 });
+
+        renderCart();
+    }
+
+    function renderCart() {
+        let subtotal = 0;
+
+        document.getElementById('cartBody').innerHTML = cart.map((item, i) => {
+            let total = item.price * item.qty;
+            subtotal += total;
+
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td><input type="number" value="${item.qty}" onchange="updateQty(${i}, this.value)"></td>
+                    <td>₱${item.price}</td>
+                    <td>₱${total}</td>
+                    <td><button onclick="removeFromCart(${i})">X</button></td>
+                </tr>
+            `;
+        }).join('');
+
+        let tax = subtotal * 0.12;
+        let total = subtotal + tax;
+
+        document.getElementById('subtotal').innerText = '₱ ' + subtotal.toFixed(2);
+document.getElementById('tax').innerText = '₱ ' + tax.toFixed(2);
+document.getElementById('totalAmount').innerText = '₱ ' + total.toFixed(2);
+    }
+
+    function updateQty(i, qty) {
+        cart[i].qty = parseInt(qty);
+        renderCart();
+    }
+    
+
+    function removeFromCart(i) {
+        cart.splice(i, 1);
+        renderCart();
+    }
+
+    document.getElementById('searchInput').addEventListener('input', renderProducts);
+    document.getElementById('categoryFilter').addEventListener('change', renderProducts);
+
+    renderProducts();
+
+    window.addToCart = addToCart;
+window.updateQty = updateQty;
+window.removeFromCart = removeFromCart;
+
+    function updateChange() {
+    let totalText = document.getElementById('totalAmount').innerText;
+    let total = parseFloat(totalText.replace('₱', '').trim());
+
+    let received = parseFloat(document.getElementById('amountReceived').value) || 0;
+
+    let change = received - total;
+
+    document.getElementById('changeDue').innerText = '₱ ' + change.toFixed(2);
+}
+
+    document.getElementById('amountReceived').addEventListener('input', updateChange);
+
+    function checkout() {
+    if (cart.length === 0) {
+        alert('Cart is empty!');
+        return;
+    }
+
+    let totalText = document.getElementById('totalAmount').innerText;
+    let total = parseFloat(totalText.replace('₱', '').trim());
+
+    let received = parseFloat(document.getElementById('amountReceived').value) || 0;
+
+    if (received < total) {
+        alert('Insufficient payment!');
+        return;
+    }
+
+    let products = JSON.parse(localStorage.getItem('products')) || [];
+
+    cart.forEach(item => {
+        let product = products.find(p => p.id === item.id);
+        if (product) {
+            product.stock -= item.qty;
         }
-        
-        document.getElementById('userName').innerText = localStorage.getItem('username') || 'User';
-        
-        // Products data
-        let products = [
-            { id: 1, name: "Rice (5kg)", price: 245, stock: 12, category: "Rice & Grains" },
-            { id: 2, name: "Cooking Oil 1L", price: 89.5, stock: 8, category: "Oils & Cooking" },
-            { id: 3, name: "Milk 1L", price: 68, stock: 5, category: "Dairy & Eggs" },
-            { id: 4, name: "Eggs (12pcs)", price: 120, stock: 15, category: "Dairy & Eggs" },
-            { id: 5, name: "Bread", price: 55, stock: 3, category: "Bakery" },
-            { id: 6, name: "Tomato Ketchup", price: 45, stock: 7, category: "Canned Goods" },
-            { id: 7, name: "Soft Drink 1.5L", price: 65, stock: 10, category: "Beverages" },
-            { id: 8, name: "Cooking Oil 2L", price: 165, stock: 6, category: "Oils & Cooking" }
-        ];
-        
-        let cart = [];
-        
-        function renderProducts() {
-            let search = document.getElementById('searchInput').value.toLowerCase();
-            let category = document.getElementById('categoryFilter').value;
-            
-            let filtered = products.filter(p => {
-                let matchesSearch = p.name.toLowerCase().includes(search);
-                let matchesCategory = category === 'all' || p.category === category;
-                return matchesSearch && matchesCategory;
-            });
-            
-            document.getElementById('productsGrid').innerHTML = filtered.map(p => `
-                <div class="product-card" onclick="addToCart(${p.id})">
-                    <h4>${p.name}</h4>
-                    <div class="product-price">₱${p.price.toFixed(2)}</div>
-                    <div class="product-stock">Stock: ${p.stock}</div>
-                </div>
-            `).join('');
-        }
-        
-        function addToCart(id) {
-            let product = products.find(p => p.id === id);
-            if (product.stock <= 0) {
-                alert('Out of stock!');
-                return;
-            }
-            
-            let existing = cart.find(i => i.id === id);
-            if (existing) {
-                if (existing.qty + 1 > product.stock) {
-                    alert('Insufficient stock!');
-                    return;
-                }
-                existing.qty++;
-            } else {
-                cart.push({ id: product.id, name: product.name, price: product.price, qty: 1 });
-            }
-            renderCart();
-        }
-        
-        function renderCart() {
-            let subtotal = 0;
-            document.getElementById('cartBody').innerHTML = cart.map((item, idx) => {
-                let itemTotal = item.price * item.qty;
-                subtotal += itemTotal;
-                return `
-                    <tr>
-                        <td>${item.name}</td>
-                        <td>
-                            <input type="number" class="qty-input" value="${item.qty}" min="1" 
-                                   onchange="updateQty(${idx}, this.value)">
-                        </td>
-                        <td>₱${item.price.toFixed(2)}</td>
-                        <td>₱${itemTotal.toFixed(2)}</td>
-                        <td>
-                            <button class="remove-item-btn" onclick="removeFromCart(${idx})">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-            
-            let tax = subtotal * 0.12;
-            let total = subtotal + tax;
-            
-            document.getElementById('subtotal').innerHTML = `₱${subtotal.toFixed(2)}`;
-            document.getElementById('tax').innerHTML = `₱${tax.toFixed(2)}`;
-            document.getElementById('totalAmount').innerHTML = `₱${total.toFixed(2)}`;
-            
-            updateChangeDue();
-        }
-        
-        function updateQty(idx, newQty) {
-            newQty = parseInt(newQty);
-            if (newQty < 1) newQty = 1;
-            
-            let product = products.find(p => p.id === cart[idx].id);
-            if (newQty > product.stock) {
-                alert('Insufficient stock!');
-                newQty = product.stock;
-            }
-            
-            cart[idx].qty = newQty;
-            renderCart();
-        }
-        
-        function removeFromCart(idx) {
-            cart.splice(idx, 1);
-            renderCart();
-        }
-        
-        function updateChangeDue() {
-            let totalText = document.getElementById('totalAmount').innerText;
-            let total = parseFloat(totalText.replace('₱', ''));
-            let received = parseFloat(document.getElementById('amountReceived').value) || 0;
-            let change = received - total;
-            document.getElementById('changeDue').innerHTML = `₱${change.toFixed(2)}`;
-        }
-        
-        function checkout() {
-            if (cart.length === 0) {
-                alert('Cart is empty!');
-                return;
-            }
-            
-            let totalText = document.getElementById('totalAmount').innerText;
-            let total = parseFloat(totalText.replace('₱', ''));
-            let received = parseFloat(document.getElementById('amountReceived').value) || 0;
-            
-            if (received < total) {
-                alert('Insufficient payment amount!');
-                return;
-            }
-            
-            // Update stock
-            for (let item of cart) {
-                let product = products.find(p => p.id === item.id);
-                product.stock -= item.qty;
-            }
-            
-            // Save transaction to localStorage
-            let transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-            transactions.unshift({
-                id: Date.now(),
-                date: new Date().toLocaleString(),
-                items: [...cart],
-                subtotal: parseFloat(document.getElementById('subtotal').innerText.replace('₱', '')),
-                tax: parseFloat(document.getElementById('tax').innerText.replace('₱', '')),
-                total: total,
-                received: received,
-                change: received - total
-            });
-            localStorage.setItem('transactions', JSON.stringify(transactions));
-            
-            alert(`Sale completed!\nTotal: ₱${total.toFixed(2)}\nChange: ₱${(received - total).toFixed(2)}`);
-            
-            cart = [];
-            document.getElementById('amountReceived').value = '';
-            renderCart();
-            renderProducts();
-        }
-        
-        function logout() {
-            localStorage.removeItem('loggedIn');
-            localStorage.removeItem('username');
-            window.location.href = 'accounts/login.html';
-        }
-        
-        // Event listeners
-        document.getElementById('sidebarToggle').addEventListener('click', function() {
-            document.querySelector('.sidebar').classList.toggle('active');
-        });
-        document.getElementById('searchInput').addEventListener('input', renderProducts);
-        document.getElementById('categoryFilter').addEventListener('change', renderProducts);
-        document.getElementById('amountReceived').addEventListener('input', updateChangeDue);
-        document.getElementById('clearCartBtn').addEventListener('click', () => { cart = []; renderCart(); });
-        document.getElementById('checkoutBtn').addEventListener('click', checkout);
-        
-        renderProducts();
-    </script>
-</body>
-</html>
+    });
+
+    localStorage.setItem('products', JSON.stringify(products));
+
+    let transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+
+    transactions.unshift({
+        id: Date.now(),
+        date: new Date().toISOString(), 
+        items: [...cart],
+        total: total
+    });
+
+    localStorage.setItem('transactions', JSON.stringify(transactions));
+
+    alert('Sale completed!\nTotal: ₱ ' + total.toFixed(2));
+
+    cart = [];
+    document.getElementById('amountReceived').value = '';
+    renderCart();
+    renderProducts();
+
+    document.getElementById('changeDue').innerText = '₱ 0.00';
+}
+document.getElementById('checkoutBtn').addEventListener('click', checkout);
+
+});
+function logout() {
+    localStorage.removeItem('loggedIn');
+    localStorage.removeItem('username');
+    window.location.href = '/accounts/login/';
+}
+let role = localStorage.getItem('role');
+
+if (role !== 'admin' && role !== 'cashier') {
+    window.location.href = '/accounts/login/';
+}
+</script>
+
+{% endblock %}
