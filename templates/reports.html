@@ -1,409 +1,305 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GrocerEase - Reports</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <link rel="stylesheet" href="../static/css/style.css">
-    <style>
-        .reports-container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        
-        .report-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            border-bottom: 2px solid var(--light);
-            padding-bottom: 10px;
-        }
-        
-        .tab-btn {
-            padding: 10px 20px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 1rem;
-            border-radius: 8px;
-            transition: 0.2s;
-        }
-        
-        .tab-btn.active {
-            background: var(--primary);
-            color: white;
-        }
-        
-        .report-panel {
-            display: none;
-        }
-        
-        .report-panel.active {
-            display: block;
-        }
-        
-        .date-range {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .date-range input {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-        }
-        
-        .btn-filter {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        
-        .btn-print {
-            background: var(--info);
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        
-        .report-summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-        
-        .summary-card {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: var(--shadow);
-        }
-        
-        .summary-card h4 {
-            font-size: 0.8rem;
-            color: var(--gray);
-        }
-        
-        .summary-card .amount {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--primary);
-        }
-        
-        .report-table {
-            width: 100%;
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: var(--shadow);
-        }
-        
-        .report-table th,
-        .report-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .report-table th {
-            background: var(--light);
-        }
-        
-        canvas {
-            max-height: 300px;
-            margin-bottom: 20px;
-        }
-    </style>
-</head>
-<body>
-    <div class="app-container">
-        <div class="sidebar">
-            <div class="sidebar-logo">
-                <i class="fas fa-store"></i>
-                <h2>Grocer<span>Ease</span></h2>
-            </div>
-            <ul class="sidebar-menu">
-                <li class="menu-item"><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li class="menu-item"><a href="pos.html"><i class="fas fa-shopping-cart"></i> Point of Sale</a></li>
-                <li class="menu-item"><a href="products.html"><i class="fas fa-boxes"></i> Products</a></li>
-                <li class="menu-item"><a href="orders.html"><i class="fas fa-truck"></i> Orders</a></li>
-                <li class="menu-item active"><a href="reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-            </ul>
-        </div>
+{% extends 'base.html' %}
+{% load static %}
 
-        <div class="main-content">
-            <nav class="navbar">
-                <div class="nav-toggle" id="sidebarToggle">
-                    <i class="fas fa-bars"></i>
-                </div>
-                <div class="nav-user">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userName"></span>
-                    <button class="logout-btn" onclick="logout()">Logout</button>
-                </div>
-            </nav>
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reports.css' %}">
+{% endblock %}
 
-            <div class="content-wrapper">
-                <div class="reports-container">
-                    <h1 class="page-title"><i class="fas fa-chart-line"></i> Reports</h1>
-                    
-                    <div class="report-tabs">
-                        <button class="tab-btn active" onclick="switchTab('sales')">Sales Report</button>
-                        <button class="tab-btn" onclick="switchTab('inventory')">Inventory Report</button>
-                    </div>
-                    
-                    <!-- Sales Report Panel -->
-                    <div id="salesPanel" class="report-panel active">
-                        <div class="date-range">
-                            <input type="date" id="startDate">
-                            <input type="date" id="endDate">
-                            <button class="btn-filter" onclick="loadSalesReport()">Filter</button>
-                            <button class="btn-print" onclick="printReport('sales')">Print Report</button>
-                        </div>
-                        
-                        <div class="report-summary">
-                            <div class="summary-card">
-                                <h4>Total Sales</h4>
-                                <div class="amount" id="totalSalesAmount">₱0</div>
-                            </div>
-                            <div class="summary-card">
-                                <h4>Total Transactions</h4>
-                                <div class="amount" id="totalTransactions">0</div>
-                            </div>
-                            <div class="summary-card">
-                                <h4>Average Sale</h4>
-                                <div class="amount" id="avgSale">₱0</div>
-                            </div>
-                        </div>
-                        
-                        <canvas id="salesChart" height="200"></canvas>
-                        
-                        <div class="table-container">
-                            <table class="report-table">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Transaction ID</th>
-                                        <th>Items</th>
-                                        <th>Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="salesTableBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <!-- Inventory Report Panel -->
-                    <div id="inventoryPanel" class="report-panel">
-                        <button class="btn-print" onclick="printReport('inventory')" style="margin-bottom: 15px;">Print Report</button>
-                        
-                        <div class="report-summary">
-                            <div class="summary-card">
-                                <h4>Total Products</h4>
-                                <div class="amount" id="totalProductsCount">0</div>
-                            </div>
-                            <div class="summary-card">
-                                <h4>Total Stock Value</h4>
-                                <div class="amount" id="totalStockValue">₱0</div>
-                            </div>
-                            <div class="summary-card">
-                                <h4>Low Stock Items</h4>
-                                <div class="amount" id="lowStockCount">0</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-container">
-                            <table class="report-table">
-                                <thead>
-                                    <tr>
-                                        <th>Product Name</th>
-                                        <th>Category</th>
-                                        <th>Price</th>
-                                        <th>Stock</th>
-                                        <th>Total Value</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="inventoryTableBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
+{% block content %}
 
-            <footer class="footer">
-                <p>&copy; 2026 GrocerEase - All rights reserved</p>
-            </footer>
-        </div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="reports-container">
+
+    <h1>
+        <i class="fas fa-chart-line"></i> Reports
+    </h1>
+
+    <div class="report-tabs">
+        <button class="tab-btn active" onclick="switchTab('sales')">Sales</button>
+        <button class="tab-btn" onclick="switchTab('inventory')">Inventory</button>
     </div>
 
-    <script>
-        if (localStorage.getItem('loggedIn') !== 'true') {
-            window.location.href = 'accounts/login.html';
+    <!-- SALES -->
+    <div id="salesPanel" class="report-panel active">
+
+        <div class="report-summary">
+            <div>Total Sales: <span id="totalSalesAmount">₱0</span></div>
+            <div>Total Transactions: <span id="totalTransactions">0</span></div>
+            <div>Average Sale: <span id="avgSale">₱0</span></div>
+        </div>
+
+        <canvas id="salesChart" style="height:300px;"></canvas>
+
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>ID</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody id="salesTableBody"></tbody>
+        </table>
+
+    </div>
+
+    <!-- INVENTORY -->
+    <div id="inventoryPanel" class="report-panel">
+
+        <div class="report-summary">
+            <div>Total Products: <span id="totalProductsCount">0</span></div>
+            <div>Total Stock Value: <span id="totalStockValue">₱0</span></div>
+            <div>Low Stock: <span id="lowStockCount">0</span></div>
+        </div>
+
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody id="inventoryTableBody"></tbody>
+        </table>
+
+    </div>
+
+</div>
+
+<script>
+
+    // =========================
+    // AUTH CHECK
+    // =========================
+    if (localStorage.getItem('loggedIn') !== 'true') {
+        window.location.href = '/accounts/login/';
+    }
+
+    document.getElementById('userName').innerText =
+        localStorage.getItem('username') || 'User';
+
+    // =========================
+    // DATA LOAD
+    // =========================
+    let products = JSON.parse(localStorage.getItem('products')) || [
+        { id: 1, name: "Rice (5kg)", price: 245, stock: 12, category: "Rice & Grains" },
+        { id: 2, name: "Cooking Oil 1L", price: 89.5, stock: 8, category: "Oils & Cooking" },
+        { id: 3, name: "Milk 1L", price: 68, stock: 5, category: "Dairy & Eggs" },
+        { id: 4, name: "Eggs (12pcs)", price: 120, stock: 15, category: "Dairy & Eggs" },
+        { id: 5, name: "Bread", price: 55, stock: 3, category: "Bakery" }
+    ];
+
+    let transactions = JSON.parse(localStorage.getItem('transactions')) || [
+        { id: 1, date: "2024-01-15 14:30", items: [{ name: "Rice", qty: 2, price: 245 }], total: 548.8 },
+        { id: 2, date: "2024-01-15 10:15", items: [{ name: "Milk", qty: 1, price: 68 }], total: 76.16 }
+    ];
+
+    let salesChart = null;
+
+    // =========================
+    // TAB SWITCH
+    // =========================
+    function switchTab(tab) {
+
+        document.querySelectorAll('.tab-btn').forEach(btn =>
+            btn.classList.remove('active')
+        );
+
+        if (tab === 'sales') {
+
+            document.querySelector('.tab-btn:first-child').classList.add('active');
+            document.getElementById('salesPanel').classList.add('active');
+            document.getElementById('inventoryPanel').classList.remove('active');
+
+            loadSalesReport();
+
+        } else {
+
+            document.querySelector('.tab-btn:last-child').classList.add('active');
+            document.getElementById('inventoryPanel').classList.add('active');
+            document.getElementById('salesPanel').classList.remove('active');
+
+            loadInventoryReport();
         }
-        
-        document.getElementById('userName').innerText = localStorage.getItem('username') || 'User';
-        
-        let products = JSON.parse(localStorage.getItem('products')) || [
-            { id: 1, name: "Rice (5kg)", price: 245, stock: 12, category: "Rice & Grains" },
-            { id: 2, name: "Cooking Oil 1L", price: 89.5, stock: 8, category: "Oils & Cooking" },
-            { id: 3, name: "Milk 1L", price: 68, stock: 5, category: "Dairy & Eggs" },
-            { id: 4, name: "Eggs (12pcs)", price: 120, stock: 15, category: "Dairy & Eggs" },
-            { id: 5, name: "Bread", price: 55, stock: 3, category: "Bakery" }
-        ];
-        
-        let transactions = JSON.parse(localStorage.getItem('transactions')) || [
-            { id: 1, date: "2024-01-15 14:30", items: [{name:"Rice", qty:2, price:245}], total: 548.8 },
-            { id: 2, date: "2024-01-15 10:15", items: [{name:"Milk", qty:1, price:68}], total: 76.16 }
-        ];
-        
-        let salesChart = null;
-        
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            if (tab === 'sales') {
-                document.querySelector('.tab-btn:first-child').classList.add('active');
-                document.getElementById('salesPanel').classList.add('active');
-                document.getElementById('inventoryPanel').classList.remove('active');
-                loadSalesReport();
-            } else {
-                document.querySelector('.tab-btn:last-child').classList.add('active');
-                document.getElementById('inventoryPanel').classList.add('active');
-                document.getElementById('salesPanel').classList.remove('active');
-                loadInventoryReport();
-            }
-        }
-        
-        function loadSalesReport() {
-            let startDate = document.getElementById('startDate').value;
-            let endDate = document.getElementById('endDate').value;
-            
-            let filtered = transactions;
-            if (startDate) {
-                filtered = filtered.filter(t => t.date.split(' ')[0] >= startDate);
-            }
-            if (endDate) {
-                filtered = filtered.filter(t => t.date.split(' ')[0] <= endDate);
-            }
-            
-            let totalSales = filtered.reduce((sum, t) => sum + t.total, 0);
-            let totalTrans = filtered.length;
-            let avgSale = totalTrans > 0 ? totalSales / totalTrans : 0;
-            
-            document.getElementById('totalSalesAmount').innerHTML = `₱${totalSales.toFixed(2)}`;
-            document.getElementById('totalTransactions').innerText = totalTrans;
-            document.getElementById('avgSale').innerHTML = `₱${avgSale.toFixed(2)}`;
-            
-            // Group by date for chart
-            let salesByDate = {};
-            filtered.forEach(t => {
-                let date = t.date.split(' ')[0];
-                salesByDate[date] = (salesByDate[date] || 0) + t.total;
+    }
+
+    // =========================
+    // SALES REPORT
+    // =========================
+    function loadSalesReport() {
+
+        // SUMMARY
+        let totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
+        let totalTrans = transactions.length;
+        let avgSale = totalTrans ? totalSales / totalTrans : 0;
+
+        document.getElementById('totalSalesAmount').innerText = '₱' + totalSales.toFixed(2);
+        document.getElementById('totalTransactions').innerText = totalTrans;
+        document.getElementById('avgSale').innerText = '₱' + avgSale.toFixed(2);
+
+        // PRODUCT-BASED SALES
+        let productMap = {};
+
+        transactions.forEach(t => {
+            (t.items || []).forEach(item => {
+
+                if (!productMap[item.name]) {
+                    productMap[item.name] = { qty: 0, revenue: 0 };
+                }
+
+                productMap[item.name].qty += item.qty;
+                productMap[item.name].revenue += item.qty * item.price;
             });
-            
-            let labels = Object.keys(salesByDate).slice(-7);
-            let data = labels.map(l => salesByDate[l]);
-            
+        });
+
+        let data = Object.entries(productMap).map(([name, val]) => ({
+            name: name,
+            qty: val.qty,
+            revenue: val.revenue
+        }));
+
+        // sort by most sold
+        data.sort((a, b) => b.qty - a.qty);
+
+        // CHART
+        let labels = data.slice(0, 5).map(p => p.name);
+        let chartData = data.slice(0, 5).map(p => p.revenue);
+
+        let chartEl = document.getElementById('salesChart');
+
+        if (chartEl) {
+
             if (salesChart) salesChart.destroy();
-            salesChart = new Chart(document.getElementById('salesChart'), {
+
+            salesChart = new Chart(chartEl, {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Sales (₱)',
-                        data: data,
+                        label: 'Top Products (₱)',
+                        data: chartData,
                         backgroundColor: '#1e6f5c',
                         borderRadius: 8
                     }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
                 }
             });
-            
-            document.getElementById('salesTableBody').innerHTML = filtered.map(t => `
-                <tr>
-                    <td>${t.date}</td>
-                    <td>#${t.id}</td>
-                    <td>${t.items.length} item(s)</td>
-                    <td>₱${t.total.toFixed(2)}</td>
-                </tr>
-            `).join('');
         }
-        
-        function loadInventoryReport() {
-            let totalProducts = products.length;
-            let totalStockValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
-            let lowStock = products.filter(p => p.stock <= 5).length;
-            
-            document.getElementById('totalProductsCount').innerText = totalProducts;
-            document.getElementById('totalStockValue').innerHTML = `₱${totalStockValue.toFixed(2)}`;
-            document.getElementById('lowStockCount').innerText = lowStock;
-            
-            document.getElementById('inventoryTableBody').innerHTML = products.map(p => `
-                <tr>
-                    <td>${p.name}</td>
-                    <td>${p.category}</td>
-                    <td>₱${p.price.toFixed(2)}</td>
-                    <td>${p.stock}</td>
-                    <td>₱${(p.price * p.stock).toFixed(2)}</td>
-                    <td>${p.stock <= 5 ? '⚠️ Low Stock' : '✓ In Stock'}</td>
-                </tr>
-            `).join('');
-        }
-        
-        function printReport(type) {
-            let printContent = document.getElementById(type === 'sales' ? 'salesPanel' : 'inventoryPanel').cloneNode(true);
-            let originalTitle = document.title;
-            document.title = `${type.toUpperCase()} Report - GrocerEase`;
-            
-            let printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <html>
-                    <head><title>${type.toUpperCase()} Report</title>
+
+        // TABLE
+        document.getElementById('salesTableBody').innerHTML = data.map(p => `
+            <tr>
+                <td>${p.name}</td>
+                <td>-</td>
+                <td>${p.qty} sold</td>
+                <td>₱${p.revenue.toFixed(2)}</td>
+            </tr>
+        `).join('');
+    }
+
+    // =========================
+    // INVENTORY REPORT
+    // =========================
+    function loadInventoryReport() {
+
+        let totalProducts = products.length;
+        let totalStockValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
+        let lowStock = products.filter(p => p.stock <= 5).length;
+
+        document.getElementById('totalProductsCount').innerText = totalProducts;
+        document.getElementById('totalStockValue').innerHTML = `₱${totalStockValue.toFixed(2)}`;
+        document.getElementById('lowStockCount').innerText = lowStock;
+
+        document.getElementById('inventoryTableBody').innerHTML = products.map(p => `
+            <tr>
+                <td>${p.name}</td>
+                <td>${p.category}</td>
+                <td>₱${p.price.toFixed(2)}</td>
+                <td>${p.stock}</td>
+                <td>₱${(p.price * p.stock).toFixed(2)}</td>
+                <td>${p.stock <= 5 ? '⚠️ Low Stock' : '✓ In Stock'}</td>
+            </tr>
+        `).join('');
+    }
+
+    // =========================
+    // PRINT
+    // =========================
+    function printReport(type) {
+
+        let printContent = document
+            .getElementById(type === 'sales' ? 'salesPanel' : 'inventoryPanel')
+            .cloneNode(true);
+
+        let originalTitle = document.title;
+        document.title = `${type.toUpperCase()} Report - GrocerEase`;
+
+        let printWindow = window.open('', '_blank');
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>${type.toUpperCase()} Report</title>
                     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
                     <style>
                         body { font-family: Arial, sans-serif; padding: 20px; }
                         table { width: 100%; border-collapse: collapse; }
                         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                         th { background: #f5f5f5; }
-                        .summary-card { display: inline-block; width: 30%; margin: 10px; padding: 10px; border: 1px solid #ddd; text-align: center; }
+                        .summary-card {
+                            display: inline-block;
+                            width: 30%;
+                            margin: 10px;
+                            padding: 10px;
+                            border: 1px solid #ddd;
+                            text-align: center;
+                        }
                     </style>
-                    </head>
-                    <body>${printContent.innerHTML}</body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
-            document.title = originalTitle;
-        }
-        
-        function logout() {
-            localStorage.removeItem('loggedIn');
-            localStorage.removeItem('username');
-            window.location.href = 'accounts/login.html';
-        }
-        
-        document.getElementById('sidebarToggle').addEventListener('click', function() {
-            document.querySelector('.sidebar').classList.toggle('active');
-        });
-        
-        // Set default dates
-        let today = new Date().toISOString().split('T')[0];
-        let lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        document.getElementById('startDate').value = lastWeek;
-        document.getElementById('endDate').value = today;
-        
-        loadSalesReport();
-    </script>
-</body>
-</html>
+                </head>
+                <body>${printContent.innerHTML}</body>
+            </html>
+        `);
+
+        printWindow.document.close();
+        printWindow.print();
+
+        document.title = originalTitle;
+    }
+
+    // =========================
+    // LOGOUT
+    // =========================
+    function logout() {
+        localStorage.removeItem('loggedIn');
+        localStorage.removeItem('username');
+        window.location.href = '/accounts/login/';
+    }
+
+    // =========================
+    // SIDEBAR
+    // =========================
+    document.getElementById('sidebarToggle').addEventListener('click', function () {
+        document.querySelector('.sidebar').classList.toggle('active');
+    });
+
+    // =========================
+    // INIT
+    // =========================
+    let today = new Date().toISOString().split('T')[0];
+    let lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split('T')[0];
+
+    loadSalesReport();
+
+</script>
+
+{% endblock %}

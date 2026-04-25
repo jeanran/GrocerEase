@@ -158,6 +158,83 @@
     display: block;
     margin-bottom: 8px;
 }
+.monthly-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    background: var(--light);
+    border-radius: 8px;
+}
+
+.summary-item strong {
+    color: var(--primary);
+}
+#monthSelector {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: white;
+}
+.quick-actions-wrapper {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 40px;
+}
+.quick-action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+ 
+    width: 220px;
+    height: 130px;
+
+    background: #ffffff;
+    border-radius: 16px;
+    text-decoration: none;
+
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    transition: all 0.25s ease;
+
+    color: #1e6f5c;
+    font-weight: 600;
+}
+
+.quick-action-btn i {
+    font-size: 28px;
+    margin-bottom: 10px;
+    color: #1e6f5c;
+}
+
+.quick-action-btn span {
+    font-size: 15px;
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(30,111,92,0.2);
+    background: #1e6f5c;
+    color: white;
+}
+
+.quick-action-btn:hover i {
+    color: white;
+}
 
 @media (max-width: 768px) {
     .stats-grid {
@@ -166,4 +243,57 @@
     .dashboard-charts {
         grid-template-columns: 1fr;
     }
+}
+@media (max-width: 768px) {
+
+    /* 📱 Title */
+    .page-title {
+        font-size: 1.4rem;
+        text-align: center;
+    }
+
+    /* 📱 Stats cards */
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+        flex-direction: row;
+        padding: 15px;
+    }
+
+    .stat-number {
+        font-size: 1.5rem;
+    }
+
+    /* 📱 Charts */
+    .dashboard-charts {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-card {
+        padding: 15px;
+    }
+
+    canvas {
+        max-width: 100%;
+    }
+
+    /* 📱 Month selector */
+    #monthSelector {
+        width: 100%;
+    }
+
+    /* 📱 Quick actions */
+    .quick-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .quick-action-btn {
+        width: 100%;
+        max-width: 300px;
+        height: 100px;
+    }
+
 }
