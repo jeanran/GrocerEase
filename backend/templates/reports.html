@@ -20,7 +20,7 @@
         <button class="tab-btn" onclick="switchTab('inventory')">Inventory</button>
     </div>
 
-    <!-- SALES -->
+    <!-- SALES PANEL -->
     <div id="salesPanel" class="report-panel active">
 
         <div class="report-summary">
@@ -31,13 +31,16 @@
 
         <canvas id="salesChart" style="height:300px;"></canvas>
 
+        <h3 style="margin: 20px 0 10px; font-size: 1rem; color: #2c3e50;">
+            Top Selling Products
+        </h3>
+
         <table class="report-table">
             <thead>
                 <tr>
-                    <th>Date</th>
-                    <th>ID</th>
-                    <th>Items</th>
-                    <th>Total</th>
+                    <th>Product Name</th>
+                    <th>Quantity Sold</th>
+                    <th>Revenue</th>
                 </tr>
             </thead>
             <tbody id="salesTableBody"></tbody>
@@ -45,7 +48,7 @@
 
     </div>
 
-    <!-- INVENTORY -->
+    <!-- INVENTORY PANEL -->
     <div id="inventoryPanel" class="report-panel">
 
         <div class="report-summary">
@@ -57,11 +60,12 @@
         <table class="report-table">
             <thead>
                 <tr>
-                    <th>Name</th>
+                    <th>Product Name</th>
                     <th>Category</th>
                     <th>Price</th>
                     <th>Stock</th>
-                    <th>Total</th>
+                    <th>Stock Value</th>
+                    <th>Status</th>
                 </tr>
             </thead>
             <tbody id="inventoryTableBody"></tbody>
@@ -72,29 +76,12 @@
 </div>
 
 <script>
-    
-
-    // Username from Django session
     let userEl = document.getElementById('userName');
     if (userEl) userEl.innerText = '{{ username }}';
 
-    // DATA — keeping localStorage for now, will connect to Supabase later
-    let products = JSON.parse(localStorage.getItem('products')) || [
-        { id: 1, name: "Rice (5kg)", price: 245, stock: 12, category: "Rice & Grains" },
-        { id: 2, name: "Cooking Oil 1L", price: 89.5, stock: 8, category: "Oils & Cooking" },
-        { id: 3, name: "Milk 1L", price: 68, stock: 5, category: "Dairy & Eggs" },
-        { id: 4, name: "Eggs (12pcs)", price: 120, stock: 15, category: "Dairy & Eggs" },
-        { id: 5, name: "Bread", price: 55, stock: 3, category: "Bakery" }
-    ];
-
-    let transactions = JSON.parse(localStorage.getItem('transactions')) || [
-        { id: 1, date: "2024-01-15 14:30", items: [{ name: "Rice", qty: 2, price: 245 }], total: 548.8 },
-        { id: 2, date: "2024-01-15 10:15", items: [{ name: "Milk", qty: 1, price: 68 }], total: 76.16 }
-    ];
-
     let salesChart = null;
 
-    // TAB SWITCH
+    // ── TAB SWITCH ─────────────────────────────────────
     function switchTab(tab) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
@@ -111,89 +98,112 @@
         }
     }
 
-    // SALES REPORT
-    function loadSalesReport() {
-        let totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
-        let totalTrans = transactions.length;
-        let avgSale = totalTrans ? totalSales / totalTrans : 0;
+    // ── SALES REPORT ───────────────────────────────────
+    async function loadSalesReport() {
+        try {
+            const res = await fetch('/api/reports/sales/');
+            const data = await res.json();
 
-        document.getElementById('totalSalesAmount').innerText = '₱' + totalSales.toFixed(2);
-        document.getElementById('totalTransactions').innerText = totalTrans;
-        document.getElementById('avgSale').innerText = '₱' + avgSale.toFixed(2);
+            // Summary
+            document.getElementById('totalSalesAmount').innerText = '₱' + data.total_sales.toFixed(2);
+            document.getElementById('totalTransactions').innerText = data.total_transactions;
+            document.getElementById('avgSale').innerText = '₱' + data.avg_sale.toFixed(2);
 
-        let productMap = {};
-        transactions.forEach(t => {
-            (t.items || []).forEach(item => {
-                if (!productMap[item.name]) {
-                    productMap[item.name] = { qty: 0, revenue: 0 };
-                }
-                productMap[item.name].qty += item.qty;
-                productMap[item.name].revenue += item.qty * item.price;
-            });
-        });
+            // Chart
+            let labels = data.products.map(p => p.name);
+            let chartData = data.products.map(p => p.revenue);
+            let chartEl = document.getElementById('salesChart');
 
-        let data = Object.entries(productMap).map(([name, val]) => ({
-            name, qty: val.qty, revenue: val.revenue
-        }));
-        data.sort((a, b) => b.qty - a.qty);
+            if (chartEl) {
+                if (salesChart) salesChart.destroy();
+                salesChart = new Chart(chartEl, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Revenue (₱)',
+                            data: chartData,
+                            backgroundColor: '#1e6f5c',
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+            }
 
-        let labels = data.slice(0, 5).map(p => p.name);
-        let chartData = data.slice(0, 5).map(p => p.revenue);
-        let chartEl = document.getElementById('salesChart');
+            // Table — correct headers: Product Name | Qty Sold | Revenue
+            if (data.products.length === 0) {
+                document.getElementById('salesTableBody').innerHTML = `
+                    <tr><td colspan="3" style="text-align:center;color:#95a5a6;padding:20px;">No sales data yet.</td></tr>
+                `;
+            } else {
+                document.getElementById('salesTableBody').innerHTML = data.products.map(p => `
+                    <tr>
+                        <td>${p.name}</td>
+                        <td>${p.qty} sold</td>
+                        <td>₱${p.revenue.toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            }
 
-        if (chartEl) {
-            if (salesChart) salesChart.destroy();
-            salesChart = new Chart(chartEl, {
-                type: 'bar',
-                data: {
-                    labels,
-                    datasets: [{
-                        label: 'Top Products (₱)',
-                        data: chartData,
-                        backgroundColor: '#1e6f5c',
-                        borderRadius: 8
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
-            });
+        } catch (err) {
+            console.error('Failed to load sales report:', err);
+            document.getElementById('salesTableBody').innerHTML = `
+                <tr><td colspan="3" style="text-align:center;color:red;padding:20px;">Failed to load data.</td></tr>
+            `;
         }
-
-        document.getElementById('salesTableBody').innerHTML = data.map(p => `
-            <tr>
-                <td>${p.name}</td>
-                <td>-</td>
-                <td>${p.qty} sold</td>
-                <td>₱${p.revenue.toFixed(2)}</td>
-            </tr>
-        `).join('');
     }
 
-    // INVENTORY REPORT
-    function loadInventoryReport() {
-        let totalProducts = products.length;
-        let totalStockValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
-        let lowStock = products.filter(p => p.stock <= 5).length;
+    // ── INVENTORY REPORT ───────────────────────────────
+    async function loadInventoryReport() {
+        try {
+            const res = await fetch('/api/reports/inventory/');
+            const data = await res.json();
 
-        document.getElementById('totalProductsCount').innerText = totalProducts;
-        document.getElementById('totalStockValue').innerHTML = `₱${totalStockValue.toFixed(2)}`;
-        document.getElementById('lowStockCount').innerText = lowStock;
+            document.getElementById('totalProductsCount').innerText = data.total_products;
+            document.getElementById('totalStockValue').innerText = '₱' + data.total_stock_value.toFixed(2);
+            document.getElementById('lowStockCount').innerText = data.low_stock;
 
-        document.getElementById('inventoryTableBody').innerHTML = products.map(p => `
-            <tr>
-                <td>${p.name}</td>
-                <td>${p.category}</td>
-                <td>₱${p.price.toFixed(2)}</td>
-                <td>${p.stock}</td>
-                <td>₱${(p.price * p.stock).toFixed(2)}</td>
-                <td>${p.stock <= 5 ? '⚠️ Low Stock' : '✓ In Stock'}</td>
-            </tr>
-        `).join('');
+            if (data.products.length === 0) {
+                document.getElementById('inventoryTableBody').innerHTML = `
+                    <tr><td colspan="6" style="text-align:center;color:#95a5a6;padding:20px;">No products yet.</td></tr>
+                `;
+            } else {
+                document.getElementById('inventoryTableBody').innerHTML = data.products.map(p => `
+                    <tr>
+                        <td>${p.name}</td>
+                        <td>${p.category}</td>
+                        <td>₱${p.price.toFixed(2)}</td>
+                        <td>${p.stock}</td>
+                        <td>₱${p.total.toFixed(2)}</td>
+                        <td>${p.stock === 0
+                            ? '<span style="color:#e74c3c;font-weight:600;">❌ Out of Stock</span>'
+                            : p.stock <= 5
+                            ? '<span style="color:#f39c12;font-weight:600;">⚠️ Low Stock</span>'
+                            : '<span style="color:#27ae60;font-weight:600;">✓ In Stock</span>'
+                        }</td>
+                    </tr>
+                `).join('');
+            }
+
+        } catch (err) {
+            console.error('Failed to load inventory report:', err);
+            document.getElementById('inventoryTableBody').innerHTML = `
+                <tr><td colspan="6" style="text-align:center;color:red;padding:20px;">Failed to load data.</td></tr>
+            `;
+        }
     }
 
-    // PRINT
+    // ── PRINT ──────────────────────────────────────────
     function printReport(type) {
         let printContent = document
             .getElementById(type === 'sales' ? 'salesPanel' : 'inventoryPanel')
@@ -203,26 +213,33 @@
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>${type.toUpperCase()} Report</title>
+                    <title>${type.toUpperCase()} Report - GrocerEase</title>
                     <style>
                         body { font-family: Arial, sans-serif; padding: 20px; }
-                        table { width: 100%; border-collapse: collapse; }
-                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                        th { background: #f5f5f5; }
+                        h1 { color: #1e6f5c; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                        th { background: #1e6f5c; color: white; }
+                        tr:nth-child(even) { background: #f9f9f9; }
                     </style>
                 </head>
-                <body>${printContent.innerHTML}</body>
+                <body>
+                    <h1>GrocerEase — ${type === 'sales' ? 'Sales' : 'Inventory'} Report</h1>
+                    <p>Generated: ${new Date().toLocaleString()}</p>
+                    ${printContent.innerHTML}
+                </body>
             </html>
         `);
         printWindow.document.close();
         printWindow.print();
     }
 
-    
+    // ── LOGOUT ─────────────────────────────────────────
     function logout() {
         window.location.href = '/logout/';
     }
 
+    // ── INIT ───────────────────────────────────────────
     loadSalesReport();
 </script>
 

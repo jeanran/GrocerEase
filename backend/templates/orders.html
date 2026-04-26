@@ -19,7 +19,7 @@
 <div class="orders-container">
 
     <div class="page-header">
-        <h1><i class="fas fa-truck"></i> Purchase Orders</h1>
+        <h1><i class="fas fa-truck"></i> Transaction History</h1>
     </div>
     
     <div class="stats-row">
@@ -71,18 +71,22 @@
     </div>
 </div>
 
-    <script>
-    
-
-    // Username from Django session
+   <script>
     let userEl = document.getElementById('userName');
     if (userEl) userEl.innerText = '{{ username }}';
 
-    let orders = JSON.parse(localStorage.getItem('transactions')) || [];
-    let nextOrderId = 3;
+    let allTransactions = [];
 
-    function saveOrders() {
-        localStorage.setItem('orders', JSON.stringify(orders));
+    async function loadTransactions() {
+        try {
+            const res = await fetch('/api/transactions/');
+            const data = await res.json();
+            allTransactions = data.transactions || [];
+            renderOrders();
+        } catch (err) {
+            document.getElementById('ordersList').innerHTML =
+                '<p style="text-align:center;color:red;padding:40px;">Failed to load transactions.</p>';
+        }
     }
 
     document.getElementById('filterDate').addEventListener('change', renderOrders);
@@ -92,40 +96,24 @@
         let filterDate = document.getElementById('filterDate').value;
         let searchId = document.getElementById('searchId').value.toLowerCase();
 
-        let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
-
-        let filtered = transactions.filter(t => {
-            let matchDate = true;
-            let matchId = true;
-
-            if (filterDate) {
-                let tDate = new Date(t.date).toISOString().split('T')[0];
-                matchDate = tDate === filterDate;
-            }
-
-            if (searchId) {
-                matchId = t.id.toString().includes(searchId);
-            }
-
+        let filtered = allTransactions.filter(t => {
+            let matchDate = !filterDate || t.date.split('T')[0] === filterDate;
+            let matchId = !searchId || t.short_id.toLowerCase().includes(searchId);
             return matchDate && matchId;
         });
 
-        // TOTAL ORDERS
         document.getElementById('totalOrders').innerText = filtered.length;
 
-        // TOTAL ITEMS
-        let totalItems = filtered.reduce((sum, order) => {
-            return sum + order.items.reduce((s, item) => s + item.qty, 0);
-        }, 0);
+        let totalItems = filtered.reduce((sum, order) =>
+            sum + order.items.reduce((s, item) => s + item.qty, 0), 0);
         document.getElementById('totalItems').innerText = totalItems;
 
-        // RENDER LIST
         document.getElementById('ordersList').innerHTML = filtered.length === 0
-            ? '<p style="text-align:center; color:#95a5a6; padding:40px;">No orders found.</p>'
+            ? '<p style="text-align:center;color:#95a5a6;padding:40px;">No transactions found.</p>'
             : filtered.map(order => `
                 <div class="order-card">
                     <div class="order-header">
-                        <span class="order-id">Sale #${order.id}</span>
+                        <span class="order-id">Sale #${order.short_id}</span>
                         <span class="order-status status-delivered">COMPLETED</span>
                     </div>
                     <div class="order-details">
@@ -133,30 +121,14 @@
                             <strong>Date:</strong> ${new Date(order.date).toLocaleString()}<br>
                             <strong>Items:</strong> ${order.items.map(i => i.name + ' x' + i.qty).join(', ')}
                         </div>
-                        <div class="order-total">
-                            Total: ₱${order.total.toFixed(2)}
-                        </div>
+                        <div class="order-total">Total: ₱${order.total.toFixed(2)}</div>
                     </div>
                 </div>
             `).join('');
     }
 
-    function openOrderModal() {
-        document.getElementById('orderModal').style.display = 'flex';
-    }
+    function logout() { window.location.href = '/logout/'; }
 
-    function closeOrderModal() {
-        document.getElementById('orderModal').style.display = 'none';
-        document.getElementById('supplierSelect').value = 'Supplier A';
-        document.getElementById('orderItems').value = '';
-        document.getElementById('orderTotal').value = '';
-    }
-
-    
-    function logout() {
-        window.location.href = '/logout/';
-    }
-
-    renderOrders();
+    loadTransactions();
 </script>
 {% endblock %}
