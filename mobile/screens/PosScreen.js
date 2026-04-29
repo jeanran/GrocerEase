@@ -1,215 +1,205 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-    View, Text, ScrollView, TouchableOpacity,
-    StyleSheet, ActivityIndicator, RefreshControl, Alert
+    View, Text, TouchableOpacity, TextInput,
+    StyleSheet, ActivityIndicator, Alert, FlatList
 } from 'react-native';
+import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import { colors, globalStyles } from '../styles/GlobalStyles';
-import API_URL from '../config';
+import { getProducts, supabase } from '../supabase';
 
-export default function DashboardScreen({ navigation, route }) {
+export default function POSScreen({ navigation, route }) {
     const { user } = route.params || {};
 
-    const [stats, setStats]         = useState(null);
-    const [loading, setLoading]     = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const [products, setProducts] = useState([]);
+    const [cart, setCart] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [checkoutLoading, setCheckoutLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('All');
 
-    const loadStats = useCallback(async () => {
+    // Load products
+    const loadProducts = useCallback(async () => {
         try {
-            const res = await fetch(`${API_URL}/api/dashboard/stats/`);
-            const data = await res.json();
-            if (data.success) setStats(data);
+            const { data, error } = await getProducts();
+            if (error) {
+                Alert.alert('Error', 'Failed to load products.');
+                return;
+            }
+            setProducts(data || []);
         } catch (err) {
-            Alert.alert('Error', 'Failed to load dashboard data.');
+            Alert.alert('Error', 'Failed to load products.');
         } finally {
             setLoading(false);
-            setRefreshing(false);
         }
     }, []);
 
-    useEffect(() => { loadStats(); }, []);
+    useEffect(() => { loadProducts(); }, []);
 
-    const onRefresh = () => {
-        setRefreshing(true);
-        loadStats();
+    // Add product to cart
+    const addToCart = (product) => {
+        const existing = cart.find(item => item.product_id === product.product_id);
+        if (existing) {
+            if (existing.quantity >= product.stock) {
+                Alert.alert('Error', 'Not enough stock available.');
+                return;
+            }
+            setCart(cart.map(item =>
+                item.product_id === product.product_id
+                    ? { ...item, quantity: item.quantity + 1 }
+                    : item
+            ));
+        } else {
+            setCart([...cart, { ...product, quantity: 1 }]);
+        }
     };
 
-    const handleLogout = () => {
-        Alert.alert('Logout', 'Are you sure you want to logout?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Logout', style: 'destructive', onPress: () => navigation.replace('Login') },
-        ]);
+    // Calculate total
+    const getTotal = () => {
+        return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     };
+
+    // Checkout logic
+    const handleCheckout = async () => {
+        if (cart.length === 0) {
+            Alert.alert('Error', 'Cart is empty.');
+            return;
+        }
+        setCheckoutLoading(true);
+        // ... your existing checkout logic (supabase inserts) ...
+        setCheckoutLoading(false);
+    };
+
+    // Filter products
+    const filteredProducts = products.filter(product => {
+        const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+        return matchesSearch && matchesCategory;
+    });
 
     if (loading) {
         return (
             <View style={globalStyles.center}>
                 <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[globalStyles.subtext, { marginTop: 12 }]}>Loading dashboard...</Text>
+                <Text style={{ marginTop: 12 }}>Loading products...</Text>
             </View>
         );
     }
 
+    // The return MUST be inside the function block
     return (
         <View style={styles.screen}>
-
             {/* Header */}
             <View style={styles.header}>
-                <View>
-                    <Text style={styles.headerTitle}>GrocerEase</Text>
-                    <Text style={styles.headerSub}>Welcome, {user?.username}</Text>
+                <View style={styles.headerLeft}>
+                    <FontAwesome5 name="store" size={24} color={colors.primary} />
+                    <Text style={styles.logoText}>Grocer<Text style={{color: colors.secondary}}>Ease</Text></Text>
                 </View>
-                <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-                    <Text style={styles.logoutText}>Logout</Text>
-                </TouchableOpacity>
+                <View style={styles.headerRight}>
+                    <View style={styles.userInfo}>
+                        <FontAwesome5 name="user-circle" size={20} color={colors.primary} />
+                        <Text style={styles.username}>{user?.username || 'Cashier'}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.logoutBtn} onPress={() => navigation.replace('Login')}>
+                        <Text style={styles.logoutText}>Logout</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            <ScrollView
-                style={styles.scroll}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+            <FlatList
+                ListHeaderComponent={
+                    <View style={{paddingHorizontal: 15}}>
+                        <Text style={styles.mainTitle}><FontAwesome5 name="search" size={20} /> Select Products</Text>
+                        <TextInput 
+                            style={styles.searchBar} 
+                            placeholder="Search products..." 
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                        <View style={styles.pickerContainer}>
+                            <Text style={styles.pickerLabel}>{selectedCategory}</Text>
+                            <MaterialIcons name="keyboard-arrow-down" size={24} color="black" />
+                        </View>
+                    </View>
                 }
-            >
-                {/* Role Badge */}
-                <View style={styles.roleBadge}>
-                    <Text style={styles.roleBadgeText}>Admin Dashboard</Text>
-                </View>
-
-                {/* Stat Cards */}
-                <View style={styles.statsGrid}>
-                    <View style={[styles.statCard, { borderLeftColor: colors.primary }]}>
-                        <Text style={styles.statLabel}>TOTAL PRODUCTS</Text>
-                        <Text style={styles.statValue}>{stats?.total_products ?? 0}</Text>
-                    </View>
-
-                    <View style={[styles.statCard, { borderLeftColor: colors.warning }]}>
-                        <Text style={styles.statLabel}>LOW STOCK</Text>
-                        <Text style={[styles.statValue, { color: colors.warning }]}>
-                            {stats?.low_stock ?? 0}
-                        </Text>
-                    </View>
-
-                    <View style={[styles.statCard, { borderLeftColor: colors.success }]}>
-                        <Text style={styles.statLabel}>TODAY'S SALES</Text>
-                        <Text style={[styles.statValue, { color: colors.success }]}>
-                            ₱{(stats?.today_sales ?? 0).toFixed(2)}
-                        </Text>
-                    </View>
-
-                    <View style={[styles.statCard, { borderLeftColor: colors.secondary }]}>
-                        <Text style={styles.statLabel}>TRANSACTIONS</Text>
-                        <Text style={styles.statValue}>{stats?.total_transactions ?? 0}</Text>
-                    </View>
-                </View>
-
-                {/* Quick Actions */}
-                <Text style={styles.sectionTitle}>Quick Actions</Text>
-
-                <View style={styles.actionsGrid}>
-                    <TouchableOpacity
-                        style={[styles.actionCard, { backgroundColor: colors.primary }]}
-                        onPress={() => navigation.navigate('POS', { user })}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={styles.actionIcon}>🛒</Text>
-                        <Text style={styles.actionText}>New Sale</Text>
+                data={filteredProducts}
+                renderItem={({ item }) => (
+                    <TouchableOpacity style={styles.productCard} onPress={() => addToCart(item)}>
+                        <Text style={styles.productName}>{item.name}</Text>
+                        <Text style={styles.productPrice}>₱{item.price.toFixed(2)}</Text>
+                        <Text style={styles.productStock}>Stock: {item.stock}</Text>
                     </TouchableOpacity>
+                )}
+                keyExtractor={item => item.product_id.toString()}
+                numColumns={2}
+                columnWrapperStyle={styles.row}
+                contentContainerStyle={styles.scrollContainer}
+            />
 
-                    <TouchableOpacity
-                        style={[styles.actionCard, { backgroundColor: colors.secondary }]}
-                        onPress={onRefresh}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={styles.actionIcon}>🔄</Text>
-                        <Text style={styles.actionText}>Refresh</Text>
+            {/* Current Sale Footer */}
+            <View style={styles.footer}>
+                <View style={styles.footerHeader}>
+                    <Text style={styles.footerTitle}><FontAwesome5 name="shopping-cart" size={18} /> Current Sale</Text>
+                    <TouchableOpacity onPress={() => setCart([])}>
+                        <Text style={styles.clearText}><FontAwesome5 name="trash" size={12} /> Clear Cart</Text>
                     </TouchableOpacity>
                 </View>
-
-                {/* Info Note */}
-                <View style={styles.infoBox}>
-                    <Text style={styles.infoText}>
-                        Pull down to refresh stats. Full reports are available on the web dashboard.
-                    </Text>
+                
+                <View style={styles.totalRow}>
+                    <Text style={styles.totalText}>Total Amount:</Text>
+                    <Text style={styles.totalValue}>₱{getTotal().toFixed(2)}</Text>
                 </View>
 
-            </ScrollView>
+                <TouchableOpacity 
+                    style={[styles.checkoutBtn, cart.length === 0 && {backgroundColor: '#ccc'}]} 
+                    onPress={handleCheckout}
+                    disabled={cart.length === 0 || checkoutLoading}
+                >
+                    {checkoutLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.checkoutBtnText}>COMPLETE SALE</Text>}
+                </TouchableOpacity>
+            </View>
         </View>
     );
-}
+} // Closing POSScreen function
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
-
-    // Header
-    header: {
-        backgroundColor: colors.primary,
-        padding: 20,
-        paddingTop: 50,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+    screen: { flex: 1, backgroundColor: '#f8f9fa' },
+    header: { 
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 15, paddingTop: 50, paddingBottom: 15, backgroundColor: '#fff' 
     },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
-    headerSub:   { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-    logoutBtn: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingVertical: 6,
-        paddingHorizontal: 14,
-        borderRadius: 20,
+    headerLeft: { flexDirection: 'row', alignItems: 'center' },
+    logoText: { fontSize: 22, fontWeight: 'bold', marginLeft: 10, color: '#2d3436' },
+    headerRight: { flexDirection: 'row', alignItems: 'center' },
+    userInfo: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
+    username: { marginLeft: 5, fontWeight: '600' },
+    logoutBtn: { backgroundColor: '#e17055', padding: 8, borderRadius: 8 },
+    logoutText: { color: '#fff', fontWeight: 'bold' },
+
+    scrollContainer: { paddingVertical: 15 },
+    mainTitle: { fontSize: 28, fontWeight: 'bold', color: '#2d3436', marginBottom: 15 },
+    searchBar: { backgroundColor: '#fff', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#dfe6e9', marginBottom: 10 },
+    pickerContainer: { 
+        flexDirection: 'row', justifyContent: 'space-between', padding: 15, 
+        backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#dfe6e9', marginBottom: 20 
     },
-    logoutText: { color: '#fff', fontWeight: '600', fontSize: 13 },
 
-    scroll: { flex: 1, padding: 16 },
-
-    // Role badge
-    roleBadge: {
-        backgroundColor: '#d4edda',
-        alignSelf: 'flex-start',
-        paddingVertical: 4,
-        paddingHorizontal: 14,
-        borderRadius: 20,
-        marginBottom: 16,
-        marginTop: 4,
+    row: { justifyContent: 'space-between', paddingHorizontal: 15 },
+    productCard: {
+        backgroundColor: '#fff', width: '48%', padding: 20, borderRadius: 15,
+        marginBottom: 15, alignItems: 'center', shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3
     },
-    roleBadgeText: { color: '#155724', fontWeight: '700', fontSize: 13 },
+    productName: { fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+    productPrice: { fontSize: 18, color: '#1e6f5c', fontWeight: 'bold', marginVertical: 5 },
+    productStock: { fontSize: 12, color: '#636e72' },
 
-    // Stats
-    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-    statCard: {
-        backgroundColor: colors.white,
-        borderRadius: 12,
-        padding: 16,
-        width: '47%',
-        borderLeftWidth: 4,
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    statLabel: { fontSize: 11, fontWeight: '700', color: colors.muted, marginBottom: 8, letterSpacing: 0.5 },
-    statValue: { fontSize: 26, fontWeight: '800', color: colors.dark },
-
-    // Section
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.dark, marginBottom: 12 },
-
-    // Actions
-    actionsGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-    actionCard: {
-        flex: 1, borderRadius: 14, padding: 20,
-        alignItems: 'center', justifyContent: 'center',
-        shadowColor: '#000', shadowOpacity: 0.1,
-        shadowRadius: 8, elevation: 3,
-    },
-    actionIcon: { fontSize: 28, marginBottom: 8 },
-    actionText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-
-    // Info
-    infoBox: {
-        backgroundColor: '#f0faf4',
-        borderRadius: 10,
-        padding: 14,
-        borderWidth: 1,
-        borderColor: colors.accent,
-        marginBottom: 30,
-    },
-    infoText: { color: colors.primary, fontSize: 13, lineHeight: 20 },
+    footer: { backgroundColor: '#fff', padding: 20, borderTopLeftRadius: 30, borderTopRightRadius: 30, elevation: 10 },
+    footerHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+    footerTitle: { fontSize: 18, fontWeight: 'bold' },
+    clearText: { color: '#e17055', fontWeight: 'bold' },
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+    totalText: { fontSize: 16, color: '#636e72' },
+    totalValue: { fontSize: 24, fontWeight: 'bold', color: '#1e6f5c' },
+    checkoutBtn: { backgroundColor: '#1e6f5c', padding: 18, borderRadius: 15, alignItems: 'center' },
+    checkoutBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' }
 });
