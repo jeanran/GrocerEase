@@ -5,7 +5,7 @@ import {
     KeyboardAvoidingView, Platform, StatusBar
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { signIn, getUsers } from '../supabase';
+import API_URL from '../config';
 
 export default function LoginScreen({ navigation }) {
     const [username, setUsername] = useState('');
@@ -21,45 +21,23 @@ export default function LoginScreen({ navigation }) {
         }
         setLoading(true);
         try {
-            // First authenticate with Supabase
-            const { data: authData, error: authError } = await signIn(username.trim(), password);
-
-            if (authError) {
-                setError('Invalid credentials.');
-                return;
-            }
-
-            // Get user role from database
-            const { data: users, error: userError } = await getUsers();
-
-            if (userError) {
-            // This will show you if it's a "Permission Denied" (RLS) error
-             setError(`Database Error: ${userError.message}`); 
-            return;
-            }
-
-            const user = users.find(u => u.email === username.trim());
-
-            if (!user) {
-                setError('User not found in database.');
-                return;
-            }
-
-            const userData = {
-                id: user.id,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                success: true
-            };
-
-            if (user.role === 'admin') {
-                navigation.replace('CashierTabs', { user: userData });
+            const res  = await fetch(`${API_URL}/api/login/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username.trim(), password }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (data.role === 'admin') {
+                    navigation.replace('Dashboard', { user: data });
+                } else {
+                    navigation.replace('POS', { user: data });
+                }
             } else {
-                navigation.replace('POSScreen', { user: userData });
+                setError(data.message || 'Invalid credentials.');
             }
         } catch (err) {
-            setError(`Login failed: ${err.message}`);
+            setError(`Cannot reach server. Make sure Django is running and IP is correct.\n${err.message}`);
         } finally {
             setLoading(false);
         }
