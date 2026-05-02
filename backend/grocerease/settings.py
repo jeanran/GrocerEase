@@ -29,13 +29,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-
+# settings.py
 
 ALLOWED_HOSTS = [
-    '*'
-
-    '.onrender.com',   # allows all Render subdomains
+    'localhost',
+    '127.0.0.1',
+    'grocerease-5xrs.onrender.com',  # Add your Render domain
+    '.onrender.com',  # This allows all Render domains (useful for preview deployments)
 ]
+
+
 # Application definition
 
 INSTALLED_APPS = [
