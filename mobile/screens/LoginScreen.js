@@ -31,7 +31,7 @@ export default function LoginScreen({ navigation }) {
                 if (data.role === 'admin') {
                     navigation.replace('Dashboard', { user: data });
                 } else {
-                    navigation.replace('POS', { user: data });
+                    navigation.replace('POSScreen', { user: data });
                 }
             } else {
                 setError(data.message || 'Invalid credentials.');
