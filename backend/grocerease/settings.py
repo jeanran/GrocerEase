@@ -152,4 +152,16 @@ LOGIN_REDIRECT_URL = '/dashboard/'
 # CORS (for mobile app)
 CORS_ALLOW_ALL_ORIGINS = True
 
+# For production, specify exact origins:
+CORS_ALLOWED_ORIGINS = [
+    
+    "https://grocerease-5xrs.onrender.com",
+]
+
+# CSRF settings (important for POST requests from mobile)
+CSRF_TRUSTED_ORIGINS = [
+    'https://grocerease-5xrs.onrender.com',
+
+]
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
