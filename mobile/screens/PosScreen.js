@@ -119,52 +119,34 @@ useEffect(() => {
     const getChange   = () => (parseFloat(amountReceived) || 0) - getTotal();
 
     // ── Barcode scan handler ─────────────────────────────────────────────────
+    const lastScanned = useRef(null);  // add this ref at the top with your other refs
+
 const handleBarCodeScanned = ({ data }) => {
+    const scannedBarcode = String(data).trim();
+
+    // Only accept if same value is read twice in a row
+    if (lastScanned.current !== scannedBarcode) {
+        lastScanned.current = scannedBarcode;
+        return; // ignore first read, wait for confirmation
+    }
+
+    // Second read matches — proceed
+    lastScanned.current = null;
     setScanned(true);
     setScannerVisible(false);
 
-    // 🔍 TEMPORARY DEBUG — remove after fixing
-    const debugInfo = products.map(p => 
-        `${p.name}: [${JSON.stringify(p.barcode)}]`
-    ).join('\n');
-
-    Alert.alert(
-        'Debug Info',
-        `Camera read: [${data}]\nLength: ${data.length}\n\nProducts:\n${debugInfo}`
-    );
-
-    console.log('Camera read:', JSON.stringify(data));
-    console.log('Available products:', products.length);
-
-    products.forEach(p => {
-        console.log(`Product: "${p.name}" | barcode: ${JSON.stringify(p.barcode)}`);
-    });
-
-    // ✅ KEEP THIS ONE ONLY
     const product = products.find(p => {
-        const cleanProduct = p.barcode
-            ? String(p.barcode).replace(/\D/g, '').replace(/^0+/, '')
-            : '';
-
-        const cleanScanned = String(data)
-            .replace(/\D/g, '')
-            .replace(/^0+/, '');
-
-        console.log('Comparing:', cleanProduct, cleanScanned);
-
-        return cleanProduct === cleanScanned;
+        const productBarcode = p.barcode ? String(p.barcode).trim() : '';
+        return productBarcode === scannedBarcode ||
+               productBarcode === scannedBarcode.replace(/^0/, '') ||
+               ('0' + productBarcode) === scannedBarcode;
     });
 
     if (product) {
-        console.log('Product found:', product.name);
         addToCart(product);
         Alert.alert('Added!', `${product.name} added to cart.`);
     } else {
-        console.log(
-            'No product found. First few barcodes:',
-            products.slice(0, 5).map(p => ({ name: p.name, barcode: p.barcode }))
-        );
-        Alert.alert('Not Found', `No product found for barcode:\n${data}`);
+        Alert.alert('Not Found', `No product found for barcode:\n${scannedBarcode}`);
     }
 
     setTimeout(() => setScanned(false), 2000);
