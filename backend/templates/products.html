@@ -44,6 +44,7 @@ products.html
 
         <input type="hidden" id="productId">
         <input type="text" id="productName" placeholder="Product Name">
+        <input type="text" id="productBarcode" placeholder="Barcode (optional)">
 
         <select id="productCategory">
             <option value="Rice & Grains">Rice & Grains</option>
@@ -148,6 +149,7 @@ products.html
         let category = document.getElementById('productCategory').value;
         let price = parseFloat(document.getElementById('productPrice').value);
         let stock = parseInt(document.getElementById('productStock').value);
+        let barcode = document.getElementById('productBarcode').value.trim(); 
 
         if (!name || isNaN(price) || isNaN(stock)) {
             alert('Please fill all fields correctly.');
@@ -163,7 +165,7 @@ products.html
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken'),
                 },
-                body: JSON.stringify({ name, category, price, stock }),
+                body: JSON.stringify({ name, category, price, stock, barcode }),
             });
             const data = await res.json();
             if (data.success) {

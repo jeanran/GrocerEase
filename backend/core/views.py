@@ -246,9 +246,10 @@ def api_users_delete(request, user_id):
 # ========================
 # PRODUCT APIs
 # ========================
+
 def api_products_list(request):
     products = Product.objects.all().values(
-        'product_id', 'name', 'category', 'price', 'stock'
+        'product_id', 'name', 'category', 'price', 'stock', 'barcode'  # ← add barcode
     )
     return JsonResponse({'success': True, 'products': list(products)})
 
@@ -261,6 +262,7 @@ def api_products_add(request):
         category = data.get('category', '')
         price = data.get('price', 0)
         stock = data.get('stock', 0)
+        barcode = data.get('barcode', '').strip()
 
         if not name:
             return JsonResponse({'success': False, 'message': 'Name is required.'})
@@ -269,14 +271,14 @@ def api_products_add(request):
             name=name,
             category=category,
             price=price,
-            stock=stock
+            stock=stock,
+            barcode=barcode
         )
 
         return JsonResponse({
             'success': True,
             'product_id': str(product.product_id)
         })
-
 
 def api_products_edit(request, product_id):
     if request.method == 'POST':
@@ -285,18 +287,21 @@ def api_products_edit(request, product_id):
         try:
             product = Product.objects.get(product_id=product_id)
 
+            # ✅ Update fields
             product.name = data.get('name', product.name)
             product.category = data.get('category', product.category)
             product.price = data.get('price', product.price)
             product.stock = data.get('stock', product.stock)
+            barcode = data.get('barcode')
+            product.barcode = barcode if barcode else None
+            
 
             product.save()
+
             return JsonResponse({'success': True})
 
         except Product.DoesNotExist:
             return JsonResponse({'success': False, 'message': 'Product not found.'})
-
-
 def api_products_delete(request, product_id):
     if request.method == 'POST':
         try:
@@ -304,6 +309,28 @@ def api_products_delete(request, product_id):
             return JsonResponse({'success': True})
         except Product.DoesNotExist:
             return JsonResponse({'success': False, 'message': 'Product not found.'})
+def api_product_by_barcode(request, barcode):
+    try:
+        barcode = barcode.strip()
+
+        product = Product.objects.get(barcode=barcode)
+
+        return JsonResponse({
+            'success': True,
+            'product': {
+                'product_id': str(product.product_id),
+                'name': product.name,
+                'price': float(product.price),
+                'stock': product.stock,
+                'barcode': product.barcode
+            }
+        })
+
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Product not found'
+        })
 
 
 # ========================
@@ -458,9 +485,11 @@ def api_login(request):
             return JsonResponse({'success': False, 'message': 'User not found.'}, status=404)
 
 @csrf_exempt
+
+
 def api_mobile_products(request):
     products = Product.objects.filter(stock__gt=0).values(
-        'product_id', 'name', 'category', 'price', 'stock'
+        'product_id', 'name', 'category', 'price', 'stock', 'barcode'  # ← add barcode
     )
     return JsonResponse({'success': True, 'products': list(products)})
 

@@ -35,8 +35,8 @@ urlpatterns = [
     path('api/products/add/', views.api_products_add, name='api_products_add'),
     path('api/products/<str:product_id>/edit/', views.api_products_edit, name='api_products_edit'),
     path('api/products/<str:product_id>/delete/', views.api_products_delete, name='api_products_delete'),
+    path('api/product/by-barcode/<str:barcode>/', views.api_product_by_barcode, name='api_product_by_barcode'),  # ← Make sure this line exists
 
-    # ========================
     # POS / TRANSACTIONS
     # ========================
     path('api/checkout/', views.api_checkout, name='api_checkout'),
@@ -56,4 +56,6 @@ urlpatterns = [
     path('api/login/', views.api_login, name='api_login'),
     path('api/mobile/products/', views.api_mobile_products, name='api_mobile_products'),
     path('api/mobile/checkout/', views.api_mobile_checkout, name='api_mobile_checkout'),
+
+    
 ]

@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';   // ← NEW
 import { colors, globalStyles } from '../styles/GlobalStyles';
 import API_URL from '../config';
 
@@ -26,11 +27,9 @@ const C = {
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const DRAWER_W = Math.min(SCREEN_W * 0.72, 280);
-// Fix: account for card padding (16 each side) + gap between cards (12)
 const CARD_PAD = 16;
 const GRID_GAP  = 12;
 const HALF_W    = (SCREEN_W - CARD_PAD * 2 - CARD_PAD * 2 - GRID_GAP) / 2;
-// outer padding 16 + card padding 16 each side + gap 12 between
 
 export default function POSScreen({ navigation, route }) {
     const { user } = route.params || {};
@@ -46,6 +45,11 @@ export default function POSScreen({ navigation, route }) {
     const [receiptVisible, setReceiptVisible]     = useState(false);
     const [lastReceipt, setLastReceipt]           = useState(null);
 
+    // ── Barcode scanner state ─────────────────────────────────────────────────
+    const [scannerVisible, setScannerVisible]     = useState(false);   // ← NEW
+    const [permission, requestPermission]         = useCameraPermissions(); // ← NEW
+    const [scanned, setScanned]                   = useState(false);   // ← NEW
+
     const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
     const openDrawer = () => {
@@ -59,19 +63,25 @@ export default function POSScreen({ navigation, route }) {
 
     // ── Load products ────────────────────────────────────────────────────────
     const loadProducts = useCallback(async () => {
-        try {
-            const res  = await fetch(`${API_URL}/api/mobile/products/`);
-            const data = await res.json();
-            if (data.success) setProducts(data.products || []);
-            else Alert.alert('Error', 'Failed to load products.');
-        } catch (err) {
-            Alert.alert('Error', 'Failed to load products: ' + err.message);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    try {
+        const url = `${API_URL}/api/mobile/products/`;
+        console.log('Fetching from:', url);  // ← ADD THIS
+        const res  = await fetch(url);
+        const raw  = await res.text();
+        console.log('Raw response:', raw.substring(0, 300));  // ← AND THIS
+        const data = JSON.parse(raw);
+        if (data.success) setProducts(data.products || []);
+    } catch (err) {
+        Alert.alert('Error', err.message);
+    } finally {
+        setLoading(false);
+    
+    }
+}, []);
 
-    useEffect(() => { loadProducts(); }, []);
+useEffect(() => {
+    loadProducts();
+}, []);
 
     // ── Cart helpers ─────────────────────────────────────────────────────────
     const addToCart = (product) => {
@@ -108,6 +118,57 @@ export default function POSScreen({ navigation, route }) {
     const getTotal    = () => getSubtotal() + getTax();
     const getChange   = () => (parseFloat(amountReceived) || 0) - getTotal();
 
+    // ── Barcode scan handler ─────────────────────────────────────────────────
+const handleBarCodeScanned = ({ data }) => {
+    setScanned(true);
+    setScannerVisible(false);
+
+    // 🔍 TEMPORARY DEBUG — remove after fixing
+    const debugInfo = products.map(p => 
+        `${p.name}: [${JSON.stringify(p.barcode)}]`
+    ).join('\n');
+
+    Alert.alert(
+        'Debug Info',
+        `Camera read: [${data}]\nLength: ${data.length}\n\nProducts:\n${debugInfo}`
+    );
+
+    console.log('Camera read:', JSON.stringify(data));
+    console.log('Available products:', products.length);
+
+    products.forEach(p => {
+        console.log(`Product: "${p.name}" | barcode: ${JSON.stringify(p.barcode)}`);
+    });
+
+    // ✅ KEEP THIS ONE ONLY
+    const product = products.find(p => {
+        const cleanProduct = p.barcode
+            ? String(p.barcode).replace(/\D/g, '').replace(/^0+/, '')
+            : '';
+
+        const cleanScanned = String(data)
+            .replace(/\D/g, '')
+            .replace(/^0+/, '');
+
+        console.log('Comparing:', cleanProduct, cleanScanned);
+
+        return cleanProduct === cleanScanned;
+    });
+
+    if (product) {
+        console.log('Product found:', product.name);
+        addToCart(product);
+        Alert.alert('Added!', `${product.name} added to cart.`);
+    } else {
+        console.log(
+            'No product found. First few barcodes:',
+            products.slice(0, 5).map(p => ({ name: p.name, barcode: p.barcode }))
+        );
+        Alert.alert('Not Found', `No product found for barcode:\n${data}`);
+    }
+
+    setTimeout(() => setScanned(false), 2000);
+};
     // ── Checkout ─────────────────────────────────────────────────────────────
     const handleCheckout = async () => {
         if (cart.length === 0) { Alert.alert('Empty Cart', 'Add items before checking out.'); return; }
@@ -127,7 +188,6 @@ export default function POSScreen({ navigation, route }) {
             });
             const data = await res.json();
             if (data.success) {
-                // Build receipt data and show modal
                 setLastReceipt({
                     receiptNo:  data.receipt_no || `RCP-${Date.now()}`,
                     date:       new Date(),
@@ -212,7 +272,6 @@ export default function POSScreen({ navigation, route }) {
                                 </View>
                             </View>
 
-                            {/* Dashed divider */}
                             <View style={s.dashedLine} />
 
                             {/* Receipt meta */}
@@ -291,12 +350,45 @@ export default function POSScreen({ navigation, route }) {
 
                         </ScrollView>
 
-                        {/* Close / New Sale button */}
                         <TouchableOpacity style={s.rcptCloseBtn} onPress={closeReceipt}>
                             <Ionicons name="add-circle-outline" size={18} color={C.white} />
                             <Text style={s.rcptCloseBtnText}>New Sale</Text>
                         </TouchableOpacity>
                     </View>
+                </View>
+            </Modal>
+
+            {/* ══ BARCODE SCANNER MODAL ════════════════════════════════════ */}
+            {/* ← NEW: entire block below */}
+            <Modal
+                visible={scannerVisible}
+                animationType="slide"
+                onRequestClose={() => setScannerVisible(false)}
+            >
+                <View style={{ flex: 1, backgroundColor: '#000' }}>
+                    <CameraView
+                        style={{ flex: 1 }}
+                        facing="back"
+                        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                        barcodeScannerSettings={{
+                            barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'upc_a', 'upc_e'],
+                        }}
+                    />
+
+                    {/* Scan frame overlay */}
+                    <View style={scannerStyles.overlay}>
+                        <View style={scannerStyles.frame} />
+                        <Text style={scannerStyles.hint}>Point camera at barcode</Text>
+                    </View>
+
+                    {/* Close button */}
+                    <TouchableOpacity
+                        style={scannerStyles.closeBtn}
+                        onPress={() => setScannerVisible(false)}
+                    >
+                        <FontAwesome5 name="times" size={18} color="#fff" />
+                        <Text style={scannerStyles.closeBtnText}>Cancel</Text>
+                    </TouchableOpacity>
                 </View>
             </Modal>
 
@@ -332,7 +424,25 @@ export default function POSScreen({ navigation, route }) {
                 <TouchableOpacity onPress={openDrawer} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <MaterialIcons name="menu" size={26} color={C.text} />
                 </TouchableOpacity>
+
                 <View style={s.topbarRight}>
+                    {/* ← NEW: Barcode scan button */}
+                    <TouchableOpacity
+                        onPress={async () => {
+                            if (!permission?.granted) {
+                                const result = await requestPermission();
+                                if (!result.granted) {
+                                    Alert.alert('Permission needed', 'Camera permission is required to scan barcodes.');
+                                    return;
+                                }
+                            }
+                            setScannerVisible(true);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <FontAwesome5 name="barcode" size={22} color={C.text} />
+                    </TouchableOpacity>
+
                     <View style={s.userRow}>
                         <FontAwesome5 name="user-circle" size={20} color={C.primary} />
                         <Text style={s.username}>{user?.username || 'Cashier'}</Text>
@@ -386,14 +496,13 @@ export default function POSScreen({ navigation, route }) {
                         ))}
                     </ScrollView>
 
-                    {/* ── Fixed 2-column grid using rows ───────────────── */}
+                    {/* ── Fixed 2-column grid ───────────────────────────── */}
                     {filteredProducts.length === 0 ? (
                         <View style={s.emptyState}>
                             <FontAwesome5 name="box-open" size={28} color={C.border} />
                             <Text style={s.emptyText}>No products found</Text>
                         </View>
                     ) : (
-                        // Chunk into pairs for reliable 2-col layout
                         Array.from({ length: Math.ceil(filteredProducts.length / 2) }, (_, i) =>
                             filteredProducts.slice(i * 2, i * 2 + 2)
                         ).map((pair, rowIdx) => (
@@ -412,7 +521,6 @@ export default function POSScreen({ navigation, route }) {
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
-                                {/* Fill empty slot if odd number */}
                                 {pair.length === 1 && <View style={s.productCardPlaceholder} />}
                             </View>
                         ))
@@ -528,13 +636,12 @@ export default function POSScreen({ navigation, route }) {
     );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Main Styles ──────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
     root:          { flex: 1, backgroundColor: C.bg },
     loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
     loadingText:   { marginTop: 12, color: C.muted, fontSize: 14 },
 
-    // ── Drawer ────────────────────────────────────────────────────────────────
     backdrop: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0,0,0,0.45)',
@@ -566,7 +673,6 @@ const s = StyleSheet.create({
     },
     drawerLogoutText: { color: C.danger, fontSize: 15, fontWeight: '600' },
 
-    // ── Topbar ────────────────────────────────────────────────────────────────
     topbar: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 16, paddingVertical: 12,
@@ -578,11 +684,9 @@ const s = StyleSheet.create({
     logoutBtn:   { backgroundColor: C.danger, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
     logoutText:  { color: C.white, fontSize: 13, fontWeight: '700' },
 
-    // ── Scroll ────────────────────────────────────────────────────────────────
     scroll:        { flex: 1 },
     scrollContent: { padding: 16, gap: 16, paddingBottom: 32 },
 
-    // ── Card ──────────────────────────────────────────────────────────────────
     card: {
         backgroundColor: C.white, borderRadius: 16, padding: CARD_PAD,
         shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8,
@@ -591,7 +695,6 @@ const s = StyleSheet.create({
     cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
     cardTitle:  { fontSize: 20, fontWeight: '700', color: C.text },
 
-    // ── Search & category ─────────────────────────────────────────────────────
     searchBar: {
         backgroundColor: C.bg, borderWidth: 1, borderColor: C.border,
         borderRadius: 24, paddingHorizontal: 18, paddingVertical: 11,
@@ -607,14 +710,13 @@ const s = StyleSheet.create({
     catPillText:       { fontSize: 13, color: C.muted, fontWeight: '500' },
     catPillTextActive: { color: C.white },
 
-    // ── Product grid – row-based for reliable 2-col ───────────────────────────
     gridRow: {
         flexDirection: 'row',
         gap:           GRID_GAP,
         marginBottom:  GRID_GAP,
     },
     productCard: {
-        flex:            1,          // each card takes equal share of the row
+        flex:            1,
         backgroundColor: C.bg,
         borderRadius:    14,
         padding:         16,
@@ -624,14 +726,13 @@ const s = StyleSheet.create({
         minHeight:       110,
         justifyContent:  'center',
     },
-    productCardPlaceholder: { flex: 1 }, // invisible filler for odd last card
+    productCardPlaceholder: { flex: 1 },
     productName:  { fontSize: 14, fontWeight: '700', textAlign: 'center', color: C.text, marginBottom: 6, lineHeight: 20 },
     productPrice: { fontSize: 20, fontWeight: '700', color: C.primary, marginBottom: 4 },
     productStock: { fontSize: 12, color: C.muted },
     emptyState:   { alignItems: 'center', paddingVertical: 40, gap: 10 },
     emptyText:    { color: C.muted, fontSize: 14 },
 
-    // ── Cart ──────────────────────────────────────────────────────────────────
     cartHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
     clearText:     { fontSize: 13, color: C.danger, fontWeight: '600' },
     tableHead: {
@@ -655,7 +756,6 @@ const s = StyleSheet.create({
     qtyBtnText: { fontSize: 16, fontWeight: '700', color: C.primary, lineHeight: 22 },
     qtyNum:     { fontSize: 13, fontWeight: '600', minWidth: 20, textAlign: 'center', color: C.text },
 
-    // ── Summary ───────────────────────────────────────────────────────────────
     divider:      { height: 1, backgroundColor: C.border, marginVertical: 14 },
     summaryRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
     summaryLabel: { fontSize: 14, color: C.muted },
@@ -664,7 +764,6 @@ const s = StyleSheet.create({
     totalLabel:   { fontSize: 18, fontWeight: '700', color: C.primary },
     totalValue:   { fontSize: 26, fontWeight: '800', color: C.primary },
 
-    // ── Payment ───────────────────────────────────────────────────────────────
     payLabel: { fontSize: 13, color: C.muted, marginTop: 16, marginBottom: 6 },
     payInput: {
         borderWidth: 1, borderColor: C.border, borderRadius: 10,
@@ -677,7 +776,6 @@ const s = StyleSheet.create({
     changeLabel: { fontSize: 15, fontWeight: '700', color: C.text },
     changeValue: { fontSize: 20, fontWeight: '700', color: C.primary },
 
-    // ── Checkout btn ──────────────────────────────────────────────────────────
     checkoutBtn: {
         backgroundColor: C.primary, borderRadius: 14,
         paddingVertical: 16, alignItems: 'center', justifyContent: 'center',
@@ -685,68 +783,42 @@ const s = StyleSheet.create({
     checkoutDisabled: { backgroundColor: '#b2bec3' },
     checkoutText:     { color: C.white, fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
 
-    // ── Footer ────────────────────────────────────────────────────────────────
     footer: { textAlign: 'center', fontSize: 12, color: C.muted, paddingTop: 4 },
 
     // ══ RECEIPT MODAL ══════════════════════════════════════════════════════════
     receiptOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.55)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
+        flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+        justifyContent: 'center', alignItems: 'center', padding: 20,
     },
     receiptSheet: {
-        backgroundColor: C.receiptBg,
-        borderRadius: 20,
-        width: '100%',
-        maxHeight: '88%',
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOpacity: 0.25,
-        shadowRadius: 20,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 16,
+        backgroundColor: C.receiptBg, borderRadius: 20,
+        width: '100%', maxHeight: '88%', overflow: 'hidden',
+        shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 20,
+        shadowOffset: { width: 0, height: 8 }, elevation: 16,
     },
-
-    // Receipt header
     rcptHeader: {
-        alignItems: 'center',
-        paddingTop: 28,
-        paddingBottom: 20,
-        paddingHorizontal: 24,
-        backgroundColor: C.white,
+        alignItems: 'center', paddingTop: 28, paddingBottom: 20,
+        paddingHorizontal: 24, backgroundColor: C.white,
     },
-    rcptLogoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+    rcptLogoRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     rcptStoreName: { fontSize: 24, fontWeight: '800', color: C.text },
     rcptTagline:   { fontSize: 12, color: C.muted, marginBottom: 14 },
     rcptBadge: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
-        backgroundColor: C.primary, paddingHorizontal: 14, paddingVertical: 6,
-        borderRadius: 20,
+        backgroundColor: C.primary, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
     },
     rcptBadgeText: { color: C.white, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
-
-    // Dashed divider — simulated with border
     dashedLine: {
-        borderStyle: 'dashed',
-        borderWidth: 1,
-        borderColor: C.border,
-        marginHorizontal: 16,
-        marginVertical: 12,
+        borderStyle: 'dashed', borderWidth: 1, borderColor: C.border,
+        marginHorizontal: 16, marginVertical: 12,
     },
-
-    // Meta
     rcptMeta:      { paddingHorizontal: 20 },
     rcptMetaRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
     rcptMetaLabel: { fontSize: 12, color: C.muted },
     rcptMetaValue: { fontSize: 12, fontWeight: '600', color: C.text, flexShrink: 1, textAlign: 'right', marginLeft: 8 },
-
-    // Items table
     rcptTableHead: {
         flexDirection: 'row', paddingHorizontal: 20,
         paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: C.border,
-        marginHorizontal: 0,
     },
     rcptTh: { fontSize: 10, fontWeight: '700', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
     rcptItem: {
@@ -757,8 +829,6 @@ const s = StyleSheet.create({
     rcptItemName: { fontSize: 13, color: C.text, lineHeight: 18 },
     rcptItemQty:  { fontSize: 13, color: C.muted },
     rcptItemAmt:  { fontSize: 13, fontWeight: '600', color: C.text },
-
-    // Totals
     rcptTotals:     { paddingHorizontal: 20, paddingTop: 4 },
     rcptTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
     rcptTotalLabel: { fontSize: 13, color: C.muted },
@@ -770,22 +840,49 @@ const s = StyleSheet.create({
     rcptGrandLabel: { fontSize: 17, fontWeight: '800', color: C.primary },
     rcptGrandVal:   { fontSize: 22, fontWeight: '800', color: C.primary },
     rcptChangeRow: {
-        backgroundColor: C.primaryLight,
-        borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
-        marginTop: 4,
+        backgroundColor: C.primaryLight, borderRadius: 8,
+        paddingHorizontal: 10, paddingVertical: 8, marginTop: 4,
     },
     rcptChangeLabel: { fontSize: 14, fontWeight: '700', color: C.primary },
     rcptChangeVal:   { fontSize: 18, fontWeight: '800', color: C.primary },
-
-    // Footer
     rcptFooter: { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 20 },
     rcptThankYou: { fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 4 },
     rcptSlogan:   { fontSize: 11, color: C.muted, textAlign: 'center' },
-
-    // Close btn
     rcptCloseBtn: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
         backgroundColor: C.primary, margin: 16, borderRadius: 14, paddingVertical: 15,
     },
     rcptCloseBtnText: { color: C.white, fontSize: 16, fontWeight: '700' },
+});
+
+// ─── Barcode Scanner Styles ───────────────────────────────────────────────────
+// ← NEW: entire scannerStyles block
+const scannerStyles = StyleSheet.create({
+    overlay: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    frame: {
+        width: 250, height: 250,
+        borderWidth: 3, borderColor: '#1e6f5c',
+        borderRadius: 16,
+        backgroundColor: 'transparent',
+    },
+    hint: {
+        color: '#fff', fontSize: 14,
+        marginTop: 20, fontWeight: '600',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingHorizontal: 16, paddingVertical: 8,
+        borderRadius: 20,
+    },
+    closeBtn: {
+        position: 'absolute', bottom: 50,
+        alignSelf: 'center',
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: '#e74c3c',
+        paddingHorizontal: 24, paddingVertical: 14,
+        borderRadius: 30,
+    },
+    closeBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
