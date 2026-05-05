@@ -49,6 +49,7 @@ export default function POSScreen({ navigation, route }) {
     const [scannerVisible, setScannerVisible]     = useState(false);   // ← NEW
     const [permission, requestPermission]         = useCameraPermissions(); // ← NEW
     const [scanned, setScanned]                   = useState(false);   // ← NEW
+    const lastScanned = useRef(null); 
 
     const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
@@ -119,21 +120,12 @@ useEffect(() => {
     const getChange   = () => (parseFloat(amountReceived) || 0) - getTotal();
 
     // ── Barcode scan handler ─────────────────────────────────────────────────
-    const lastScanned = useRef(null);  // add this ref at the top with your other refs
-
-const handleBarCodeScanned = ({ data }) => {
-    const scannedBarcode = String(data).trim();
-
-    // Only accept if same value is read twice in a row
-    if (lastScanned.current !== scannedBarcode) {
-        lastScanned.current = scannedBarcode;
-        return; // ignore first read, wait for confirmation
-    }
-
-    // Second read matches — proceed
-    lastScanned.current = null;
+ // add this ref at the top with your other refs
+    const handleBarCodeScanned = ({ data }) => {
     setScanned(true);
     setScannerVisible(false);
+
+    const scannedBarcode = String(data).trim();
 
     const product = products.find(p => {
         const productBarcode = p.barcode ? String(p.barcode).trim() : '';
@@ -149,8 +141,10 @@ const handleBarCodeScanned = ({ data }) => {
         Alert.alert('Not Found', `No product found for barcode:\n${scannedBarcode}`);
     }
 
-    setTimeout(() => setScanned(false), 2000);
+    setTimeout(() => setScanned(false), 1500);
 };
+
+
     // ── Checkout ─────────────────────────────────────────────────────────────
     const handleCheckout = async () => {
         if (cart.length === 0) { Alert.alert('Empty Cart', 'Add items before checking out.'); return; }
@@ -350,7 +344,9 @@ const handleBarCodeScanned = ({ data }) => {
                 <View style={{ flex: 1, backgroundColor: '#000' }}>
                     <CameraView
                         style={{ flex: 1 }}
+                        
                         facing="back"
+                        autofocus="on"
                         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
                         barcodeScannerSettings={{
                             barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'upc_a', 'upc_e'],
@@ -846,7 +842,7 @@ const scannerStyles = StyleSheet.create({
         justifyContent: 'center',
     },
     frame: {
-        width: 250, height: 250,
+        width: 280, height: 120,
         borderWidth: 3, borderColor: '#1e6f5c',
         borderRadius: 16,
         backgroundColor: 'transparent',
