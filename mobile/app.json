@@ -11,6 +11,10 @@
       "resizeMode": "contain",
       "backgroundColor": "#1e6f5c"
     },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.grocerease.app"
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -18,9 +22,19 @@
       },
       "package": "com.grocerease.app"
     },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.grocerease.app"
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow GrocerEase to access your camera to scan item barcodes."
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b32e6469-97ac-48bf-89bd-892a3919867c"
+      }
     }
   }
 }
