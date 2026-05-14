@@ -44,10 +44,7 @@
     }
 
     /* ── Save button states ── */
-    .btn-save:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-    }
+    .btn-save:disabled { opacity: 0.7; cursor: not-allowed; }
     .btn-save.loading::after {
         content: '';
         display: inline-block;
@@ -60,9 +57,7 @@
         margin-left: 8px;
         vertical-align: middle;
     }
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Row highlight on new user ── */
     @keyframes rowHighlight {
@@ -71,7 +66,7 @@
     }
     .row-new { animation: rowHighlight 2s ease forwards; }
 
-    /* ── Empty / Loading state ── */
+    /* ── Empty state ── */
     .empty-state {
         text-align: center;
         padding: 2.5rem !important;
@@ -92,6 +87,15 @@
     @keyframes shimmer {
         from { background-position: 200% 0; }
         to   { background-position: -200% 0; }
+    }
+
+    /* ── Shake keyframe ── */
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        20%       { transform: translateX(-8px); }
+        40%       { transform: translateX(8px); }
+        60%       { transform: translateX(-5px); }
+        80%       { transform: translateX(5px); }
     }
 </style>
 {% endblock %}
@@ -121,23 +125,20 @@
                 <th>Email</th>
                 <th>Role</th>
                 <th>Verified</th>
-                <th>Status</th>
                 <th>Created</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody id="usersTableBody">
-            <!-- Skeleton rows while loading -->
-            {% for i in "12345" %}
+            {% for i in "1234567" %}
             <tr>
                 <td><span class="skeleton" style="width:20px"></span></td>
                 <td><span class="skeleton" style="width:100px"></span></td>
                 <td><span class="skeleton" style="width:140px"></span></td>
                 <td><span class="skeleton" style="width:50px"></span></td>
                 <td><span class="skeleton" style="width:60px"></span></td>
-                <td><span class="skeleton" style="width:60px"></span></td>
                 <td><span class="skeleton" style="width:80px"></span></td>
-                <td><span class="skeleton" style="width:120px"></span></td>
+                <td><span class="skeleton" style="width:80px"></span></td>
             </tr>
             {% endfor %}
         </tbody>
@@ -189,25 +190,10 @@
     </div>
 </div>
 
-<!-- ── Deactivate / Activate Confirm Modal ── -->
-<div id="deactivateModal" class="modal">
-    <div class="modal-content">
-        <h3 id="deactivateTitle">Deactivate User</h3>
-        <p class="delete-confirm-text" id="deactivateText"></p>
-        <input type="hidden" id="deactivateUserId">
-        <input type="hidden" id="deactivateAction">
-        <div class="modal-actions">
-            <button class="btn-delete-confirm" id="deactivateConfirmBtn" onclick="confirmDeactivate()">Confirm</button>
-            <button class="btn-cancel" onclick="closeDeactivateModal()">Cancel</button>
-        </div>
-    </div>
-</div>
-
 <script>
 
     let allUsers  = [];
     let isEditing = false;
-    let lastAddedId = null;
 
     // ════════════════════════════════════
     // LOAD USERS
@@ -231,40 +217,28 @@
     // RENDER TABLE
     // ════════════════════════════════════
     function renderUsers(users, highlightId = null) {
-        let search   = document.getElementById('searchInput').value.toLowerCase();
-        let filtered = users.filter(u =>
+        const search   = document.getElementById('searchInput').value.toLowerCase();
+        const filtered = users.filter(u =>
             u.username.toLowerCase().includes(search) ||
             u.role.toLowerCase().includes(search)
         );
 
         if (filtered.length === 0) {
             document.getElementById('usersTableBody').innerHTML =
-                '<tr><td colspan="8" class="empty-state"><i class="fas fa-user-slash" style="font-size:28px;display:block;margin-bottom:8px;opacity:0.3"></i>No users found.</td></tr>';
+                '<tr><td colspan="7" class="empty-state"><i class="fas fa-user-slash" style="font-size:28px;display:block;margin-bottom:8px;opacity:0.3"></i>No users found.</td></tr>';
             return;
         }
 
         document.getElementById('usersTableBody').innerHTML = filtered.map((u, i) => {
 
-            let verifiedBadge = u.is_verified
+            const verifiedBadge = u.is_verified
                 ? '<span class="status-badge verified"><i class="fas fa-check-circle"></i> Verified</span>'
                 : '<span class="status-badge unverified"><i class="fas fa-clock"></i> Pending</span>';
 
-            let activeBadge = u.is_active
-                ? '<span class="status-badge active"><i class="fas fa-circle" style="font-size:8px"></i> Active</span>'
-                : '<span class="status-badge inactive"><i class="fas fa-circle" style="font-size:8px"></i> Inactive</span>';
-
-            let actionBtn = u.is_active
-                ? `<button class="btn-deactivate" onclick="openDeactivateModal('${u.user_id}', '${u.username}', 'deactivate')">
-                       <i class="fas fa-ban"></i> Deactivate
-                   </button>`
-                : `<button class="btn-activate" onclick="openDeactivateModal('${u.user_id}', '${u.username}', 'activate')">
-                       <i class="fas fa-check-circle"></i> Activate
-                   </button>`;
-
-            let isNew = highlightId && String(u.user_id) === String(highlightId);
+            const isNew = highlightId && String(u.user_id) === String(highlightId);
 
             return `
-                <tr class="${!u.is_active ? 'row-inactive' : ''} ${isNew ? 'row-new' : ''}">
+                <tr class="${isNew ? 'row-new' : ''}">
                     <td>${i + 1}</td>
                     <td><i class="fas fa-user user-icon"></i> ${u.username}</td>
                     <td>${u.email || '—'}</td>
@@ -274,13 +248,11 @@
                         </span>
                     </td>
                     <td>${verifiedBadge}</td>
-                    <td>${activeBadge}</td>
                     <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                     <td class="action-buttons">
                         <button class="btn-edit" onclick="openEditModal('${u.user_id}', '${u.username}', '${u.role}', '${u.email || ''}')">
                             <i class="fas fa-edit"></i> Edit
                         </button>
-                        ${actionBtn}
                     </td>
                 </tr>
             `;
@@ -304,7 +276,7 @@
         document.getElementById('passwordHint').innerText  = 'Staff will use this to log in after verifying their email.';
         document.getElementById('inputUsername').disabled  = false;
         document.getElementById('inputEmail').disabled     = false;
-        document.getElementById('saveBtn').innerText       = 'Save';
+        document.getElementById('saveBtn').innerHTML       = '<i class="fas fa-save"></i> Save';
         document.getElementById('saveBtn').classList.remove('loading');
         document.getElementById('saveBtn').disabled        = false;
         document.getElementById('userModal').classList.add('show');
@@ -326,7 +298,7 @@
         document.getElementById('passwordHint').innerText  = 'Leave blank to keep current password.';
         document.getElementById('inputUsername').disabled  = true;
         document.getElementById('inputEmail').disabled     = true;
-        document.getElementById('saveBtn').innerText       = 'Save Changes';
+        document.getElementById('saveBtn').innerHTML       = '<i class="fas fa-save"></i> Save Changes';
         document.getElementById('saveBtn').classList.remove('loading');
         document.getElementById('saveBtn').disabled        = false;
         document.getElementById('userModal').classList.add('show');
@@ -340,13 +312,12 @@
     // SAVE USER
     // ════════════════════════════════════
     async function saveUser() {
-        let id       = document.getElementById('userId').value;
-        let username = document.getElementById('inputUsername').value.trim();
-        let password = document.getElementById('inputPassword').value;
-        let email    = document.getElementById('inputEmail').value.trim();
-        let role     = document.getElementById('inputRole').value;
+        const id       = document.getElementById('userId').value;
+        const username = document.getElementById('inputUsername').value.trim();
+        const password = document.getElementById('inputPassword').value;
+        const email    = document.getElementById('inputEmail').value.trim();
+        const role     = document.getElementById('inputRole').value;
 
-        // ── Validation ──
         if (!username) {
             shakeInput('inputUsername');
             showAlert('Username is required.', 'error');
@@ -363,14 +334,13 @@
             return;
         }
 
-        // ── Loading state ──
-        let saveBtn         = document.getElementById('saveBtn');
+        const saveBtn       = document.getElementById('saveBtn');
         saveBtn.disabled    = true;
         saveBtn.classList.add('loading');
         saveBtn.innerText   = isEditing ? 'Saving changes...' : 'Creating user...';
 
-        let url  = isEditing ? `/api/users/${id}/edit/` : '/api/users/add/';
-        let body = { username, role };
+        const url  = isEditing ? `/api/users/${id}/edit/` : '/api/users/add/';
+        const body = { username, role };
         if (password)   body.password = password;
         if (!isEditing) body.email    = email;
 
@@ -387,21 +357,14 @@
 
             if (data.success) {
                 closeModal();
-
-                // ── Show toast notification ──
-                if (!isEditing) {
-                    showToast(
-                        `Staff account created!<br><small>Activation email sent to <strong>${email}</strong></small>`,
-                        'success',
-                        6000
-                    );
-                } else {
-                    showToast(' User updated successfully!', 'success', 4000);
-                }
-
-                // ── Reload and highlight new row ──
+                showToast(
+                    isEditing
+                        ? '✅ User updated successfully!'
+                        : `✅ Staff account created!<br><small>Activation email sent to <strong>${email}</strong></small>`,
+                    'success',
+                    isEditing ? 4000 : 6000
+                );
                 await loadUsers(data.user_id || null);
-
             } else {
                 showToast('❌ ' + (data.message || 'Something went wrong.'), 'error', 5000);
             }
@@ -411,98 +374,29 @@
         } finally {
             saveBtn.disabled  = false;
             saveBtn.classList.remove('loading');
-            saveBtn.innerText = isEditing ? '💾 Save Changes' : '💾 Save';
-        }
-    }
-
-    // ════════════════════════════════════
-    // DEACTIVATE / ACTIVATE
-    // ════════════════════════════════════
-    function openDeactivateModal(id, username, action) {
-        document.getElementById('deactivateUserId').value = id;
-        document.getElementById('deactivateAction').value = action;
-
-        if (action === 'deactivate') {
-            document.getElementById('deactivateTitle').innerText      = 'Deactivate User';
-            document.getElementById('deactivateText').innerHTML       =
-                `Are you sure you want to deactivate <strong>${username}</strong>?
-                 They will no longer be able to log in. Their records will be preserved.`;
-            document.getElementById('deactivateConfirmBtn').className = 'btn-delete-confirm';
-            document.getElementById('deactivateConfirmBtn').innerText = 'Deactivate';
-        } else {
-            document.getElementById('deactivateTitle').innerText      = 'Activate User';
-            document.getElementById('deactivateText').innerHTML       =
-                `Are you sure you want to re-activate <strong>${username}</strong>?
-                 They will be able to log in again.`;
-            document.getElementById('deactivateConfirmBtn').className = 'btn-save';
-            document.getElementById('deactivateConfirmBtn').innerText = 'Activate';
-        }
-
-        document.getElementById('deactivateModal').classList.add('show');
-    }
-
-    function closeDeactivateModal() {
-        document.getElementById('deactivateModal').classList.remove('show');
-    }
-
-    async function confirmDeactivate() {
-        let id     = document.getElementById('deactivateUserId').value;
-        let action = document.getElementById('deactivateAction').value;
-        let url    = `/api/users/${id}/${action}/`;
-
-        let confirmBtn      = document.getElementById('deactivateConfirmBtn');
-        confirmBtn.disabled = true;
-        confirmBtn.innerText = 'Processing...';
-
-        try {
-            const res  = await fetch(url, {
-                method:  'POST',
-                headers: { 'X-CSRFToken': getCookie('csrftoken') },
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                closeDeactivateModal();
-                showToast(
-                    action === 'deactivate'
-                        ? ' User deactivated successfully.'
-                        : 'User activated successfully.',
-                    action === 'deactivate' ? 'error' : 'success',
-                    4000
-                );
-                await loadUsers();
-            } else {
-                showToast('❌ ' + (data.message || 'Failed.'), 'error', 4000);
-            }
-        } catch (err) {
-            showToast('❌ Error: ' + err.message, 'error', 4000);
-        } finally {
-            confirmBtn.disabled  = false;
-            confirmBtn.innerText = action === 'deactivate' ? 'Deactivate' : 'Activate';
+            saveBtn.innerHTML = isEditing
+                ? '<i class="fas fa-save"></i> Save Changes'
+                : '<i class="fas fa-save"></i> Save';
         }
     }
 
     // ════════════════════════════════════
     // HELPERS
     // ════════════════════════════════════
-
-    // Show inline alert (inside page)
     function showAlert(msg, type) {
-        let box       = document.getElementById('alertBox');
+        const box   = document.getElementById('alertBox');
         box.innerText = msg;
         box.className = `alert alert-${type} show`;
         setTimeout(() => box.classList.remove('show'), 4000);
     }
 
-    // Show floating toast notification
     function showToast(msg, type = 'success', duration = 4000) {
-        let existing = document.getElementById('toastNotif');
+        const existing = document.getElementById('toastNotif');
         if (existing) existing.remove();
 
-        let icons = { success: '✅', error: '❌', info: 'ℹ️' };
-
-        let toast = document.createElement('div');
-        toast.id  = 'toastNotif';
+        const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+        const toast = document.createElement('div');
+        toast.id        = 'toastNotif';
         toast.className = `toast ${type}`;
         toast.innerHTML = `
             <span class="toast-icon">${icons[type] || '📢'}</span>
@@ -519,67 +413,44 @@
         }, duration);
     }
 
-    // Shake animation for invalid input
     function shakeInput(id) {
-        let el = document.getElementById(id);
+        const el = document.getElementById(id);
+        el.style.border    = '1.5px solid #f87171';
         el.style.animation = 'none';
-        el.offsetHeight; // reflow
-        el.style.border = '1.5px solid #f87171';
+        el.offsetHeight;
         el.style.animation = 'shake 0.4s ease';
         setTimeout(() => {
-            el.style.border = '';
+            el.style.border    = '';
             el.style.animation = '';
         }, 800);
     }
 
-    // Toggle password visibility
     function togglePassword() {
-        let input = document.getElementById('inputPassword');
-        let icon  = document.getElementById('eyeIcon');
+        const input = document.getElementById('inputPassword');
+        const icon  = document.getElementById('eyeIcon');
         if (input.type === 'password') {
-            input.type      = 'text';
-            icon.className  = 'fas fa-eye-slash';
+            input.type     = 'text';
+            icon.className = 'fas fa-eye-slash';
         } else {
-            input.type      = 'password';
-            icon.className  = 'fas fa-eye';
+            input.type     = 'password';
+            icon.className = 'fas fa-eye';
         }
     }
 
-    // Get CSRF token
     function getCookie(name) {
-        let value = `; ${document.cookie}`;
-        let parts = value.split(`; ${name}=`);
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
         if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    // Close modals on outside click
-    window.addEventListener('click', function(e) {
-        if (e.target.id === 'userModal')       closeModal();
-        if (e.target.id === 'deactivateModal') closeDeactivateModal();
+    window.addEventListener('click', e => {
+        if (e.target.id === 'userModal') closeModal();
     });
 
-    // Close modals on Escape key
-    window.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            closeModal();
-            closeDeactivateModal();
-        }
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeModal();
     });
 
-    // Shake keyframe
-    let style = document.createElement('style');
-    style.textContent = `
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%       { transform: translateX(-8px); }
-            40%       { transform: translateX(8px); }
-            60%       { transform: translateX(-5px); }
-            80%       { transform: translateX(5px); }
-        }
-    `;
-    document.head.appendChild(style);
-
-    // Initial load
     loadUsers();
 
 </script>
