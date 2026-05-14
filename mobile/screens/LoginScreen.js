@@ -10,43 +10,47 @@ import API_URL from '../config';
 export default function LoginScreen({ navigation }) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [loading,  setLoading]  = useState(false);
+    const [error,    setError]    = useState('');
 
     const handleLogin = async () => {
         setError('');
+
         if (!username.trim() || !password) {
-            setError('Please enter username and password.');
+            setError('Please enter your username and password.');
             return;
         }
-        
+
         setLoading(true);
         try {
             const response = await fetch(`${API_URL}/api/login/`, {
-                method: 'POST',
+                method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username.trim(), password }),
+                body:    JSON.stringify({ username: username.trim(), password }),
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 const userData = {
-                    user_id: data.user_id,
+                    user_id:  data.user_id,
                     username: data.username,
-                    role: data.role
+                    role:     data.role,
                 };
-                
+
                 if (data.role === 'admin') {
                     navigation.replace('AdminDashboard', { user: userData });
+                } else if (data.role === 'staff') {
+                    navigation.replace('StaffDashboard', { user: userData });
                 } else {
-                    navigation.replace('POSScreen', { user: userData });
+                    setError('You do not have access to this app.');
                 }
             } else {
                 setError(data.message || 'Invalid credentials. Please try again.');
             }
+
         } catch (err) {
-            setError(`Cannot connect to server. Make sure Django is running.\n${err.message}`);
+            setError(`Cannot connect to server. Please check your connection.\n${err.message}`);
         } finally {
             setLoading(false);
         }
@@ -67,6 +71,8 @@ export default function LoginScreen({ navigation }) {
                 keyboardShouldPersistTaps="handled"
             >
                 <View style={styles.card}>
+
+                    {/* Logo */}
                     <View style={styles.logoCircle}>
                         <FontAwesome5 name="store" size={36} color="#fff" />
                     </View>
@@ -76,6 +82,7 @@ export default function LoginScreen({ navigation }) {
                     </Text>
                     <Text style={styles.subtitle}>Sales & Inventory System</Text>
 
+                    {/* Error */}
                     {error ? (
                         <View style={styles.errorBox}>
                             <FontAwesome5 name="exclamation-circle" size={13} color="#721c24" />
@@ -83,6 +90,7 @@ export default function LoginScreen({ navigation }) {
                         </View>
                     ) : null}
 
+                    {/* Username */}
                     <View style={styles.inputGroup}>
                         <FontAwesome5 name="user" size={15} color="#95a5a6" style={styles.icon} />
                         <TextInput
@@ -96,6 +104,7 @@ export default function LoginScreen({ navigation }) {
                         />
                     </View>
 
+                    {/* Password */}
                     <View style={styles.inputGroup}>
                         <FontAwesome5 name="lock" size={15} color="#95a5a6" style={styles.icon} />
                         <TextInput
@@ -108,6 +117,7 @@ export default function LoginScreen({ navigation }) {
                         />
                     </View>
 
+                    {/* Login Button */}
                     <TouchableOpacity
                         style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
                         onPress={handleLogin}
@@ -119,6 +129,7 @@ export default function LoginScreen({ navigation }) {
                             : <Text style={styles.loginBtnText}>Login</Text>
                         }
                     </TouchableOpacity>
+
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -170,9 +181,9 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
 
-    title: { fontSize: 28, fontWeight: '700', color: '#2c3e50', marginBottom: 4 },
+    title:       { fontSize: 28, fontWeight: '700', color: '#2c3e50', marginBottom: 4 },
     titleAccent: { color: '#1e6f5c' },
-    subtitle: { fontSize: 14, color: '#95a5a6', marginBottom: 24 },
+    subtitle:    { fontSize: 14, color: '#95a5a6', marginBottom: 24 },
 
     errorBox: {
         width: '100%',
@@ -196,10 +207,10 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         backgroundColor: '#fff',
     },
-    icon: { marginRight: 10 },
+    icon:  { marginRight: 10 },
     input: { flex: 1, paddingVertical: 13, fontSize: 15, color: '#2c3e50' },
 
-    loginBtn: { width: '100%', backgroundColor: '#1e6f5c', borderRadius: 30, padding: 14, alignItems: 'center', marginTop: 4 },
+    loginBtn:         { width: '100%', backgroundColor: '#1e6f5c', borderRadius: 30, padding: 14, alignItems: 'center', marginTop: 4 },
     loginBtnDisabled: { opacity: 0.7 },
-    loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '600', letterSpacing: 0.5 },
+    loginBtnText:     { color: '#fff', fontSize: 16, fontWeight: '600', letterSpacing: 0.5 },
 });
