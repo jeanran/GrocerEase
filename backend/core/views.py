@@ -37,28 +37,34 @@ def is_admin(request):
 # ========================
 # EMAIL
 # ========================
-def send_verification_email(user, request):
-    token                  = secrets.token_urlsafe(32)
+def send_verification_email(user, request, password_plain=''):
+    token                   = secrets.token_urlsafe(32)
     user.verification_token = token
     user.save()
 
     scheme     = 'https' if request.is_secure() else 'http'
     host       = request.get_host()
     verify_url = f"{scheme}://{host}/verify/{token}/"
+    login_url  = f"{scheme}://{host}/"
 
     send_mail(
-        subject='Activate your GrocerEase Account',
+        subject='Activate Your Staff Account',
         message=f"""Hello {user.username},
 
-Your GrocerEase staff account has been created by the Admin.
+Your staff account has been created.
 
-Click the link below to verify your email and activate your account:
-
+Click the link below to activate your account:
 {verify_url}
 
-Once verified, log in using your username and password.
+Your login credentials:
+Username: {user.username}
+Password: {password_plain if password_plain else '(as set by admin)'}
 
-— GrocerEase System
+After activation, you can log in at:
+{login_url}
+
+Regards,
+Admin Team
 """,
         from_email=settings.EMAIL_HOST_USER,
         recipient_list=[user.email],
@@ -292,7 +298,7 @@ def api_users_add(request):
         )
 
         try:
-            send_verification_email(user, request)
+            send_verification_email(user, request, password_plain=password)
             return JsonResponse({'success': True, 'message': f'User created! Verification email sent to {email}.'})
         except Exception as e:
             return JsonResponse({'success': True, 'message': f'User created but email failed: {str(e)}'})

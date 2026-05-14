@@ -5,24 +5,22 @@
     </div>
 
     <ul class="sidebar-menu">
-        <li class="menu-item" id="menuDashboard">
+
+        <!-- Admin only -->
+        <li class="menu-item admin-only" id="menuDashboard">
             <a href="{% url 'dashboard' %}">
                 <i class="fas fa-tachometer-alt"></i> Dashboard
             </a>
         </li>
 
-        <li class="menu-item" id="menuPOS">
-            <a href="{% url 'pos' %}">
-                <i class="fas fa-shopping-cart"></i> Point of Sale
+        <!-- Both admin and staff -->
+        <li class="menu-item" id="menuProducts">
+            <a href="{% url 'products' %}">
+                <i class="fas fa-boxes"></i> Stocks
             </a>
         </li>
 
-        <li class="menu-item" id="menuProducts">
-            <a href="{% url 'products' %}">
-                <i class="fas fa-boxes"></i> Products
-            </a>
-        </li>
-                <li class="menu-item" id="menuStockIn">
+        <li class="menu-item" id="menuStockIn">
             <a href="{% url 'stock_in' %}">
                 <i class="fas fa-arrow-circle-down"></i> Stock In
             </a>
@@ -34,52 +32,43 @@
             </a>
         </li>
 
-
-        <li class="menu-item" id="menuOrders">
-            <a href="{% url 'orders' %}">
-                <i class="fas fa-truck"></i> Transaction History
+        <li class="menu-item" id="menuPOS">
+            <a href="{% url 'pos' %}">
+                <i class="fas fa-shopping-cart"></i> Point of Sale
             </a>
         </li>
 
-        <li class="menu-item" id="menuReports">
+        <li class="menu-item" id="menuOrders">
+            <a href="{% url 'orders' %}">
+                <i class="fas fa-receipt"></i> Transaction History
+            </a>
+        </li>
+
+        <!-- Admin only -->
+        <li class="menu-item admin-only" id="menuReports">
             <a href="{% url 'reports' %}">
                 <i class="fas fa-chart-line"></i> Reports
             </a>
         </li>
-        
-        <li class="menu-item" id="menuUsers">
+
+        <li class="menu-item admin-only" id="menuUsers">
             <a href="{% url 'users' %}">
                 <i class="fas fa-users"></i> Manage Users
             </a>
         </li>
+
     </ul>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-
     let role = '{{ request.session.role }}';
 
-    // ADMIN VIEW → hide POS
-    if (role === 'admin') {
-        let pos = document.getElementById('menuPOS');
-        if (pos) pos.style.display = 'none';
+    // Staff → hide admin-only menu items
+    if (role === 'staff') {
+        document.querySelectorAll('.admin-only').forEach(function (el) {
+            el.style.display = 'none';
+        });
     }
-
-    // CASHIER VIEW → show ONLY POS
-    if (role === 'cashier') {
-        let dashboard = document.getElementById('menuDashboard');
-        let products = document.getElementById('menuProducts');
-        let orders = document.getElementById('menuOrders');
-        let reports = document.getElementById('menuReports');
-        let users = document.getElementById('menuUsers');
-
-        if (dashboard) dashboard.style.display = 'none';
-        if (products) products.style.display = 'none';
-        if (orders) orders.style.display = 'none';
-        if (reports) reports.style.display = 'none';
-        if (users) users.style.display = 'none';
-    }
-
 });
 </script>
