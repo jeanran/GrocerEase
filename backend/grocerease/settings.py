@@ -97,12 +97,12 @@ WSGI_APPLICATION = 'grocerease.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('SUPABASE_DB_NAME'),
-        'USER': os.getenv('SUPABASE_DB_USER'),
-        'PASSWORD': os.getenv('SUPABASE_DB_PASSWORD'),
-        'HOST': os.getenv('SUPABASE_DB_HOST'),
-        'PORT': os.getenv('SUPABASE_DB_PORT'),
+        'ENGINE':   'django.db.backends.postgresql',
+        'NAME':     'postgres',
+        'USER':     'postgres.mmdbbngsxcvekjwliowd',
+        'PASSWORD': 'GrocerEase123',
+        'HOST':     'aws-1-ap-southeast-1.pooler.supabase.com',
+        'PORT':     '5432',
     }
 }
 
@@ -199,7 +199,6 @@ CSRF_TRUSTED_ORIGINS = [
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
@@ -208,5 +207,11 @@ EMAIL_USE_SSL = False
 EMAIL_HOST_USER = 'rjeanalie@gmail.com'
 EMAIL_HOST_PASSWORD = 'ceqovoxsuhoayppp'
 DEFAULT_FROM_EMAIL = 'rjeanalie@gmail.com'
+EMAIL_TIMEOUT = 30
+
+FRONTEND_URL = 'https://grocerease-5xrs.onrender.com/'
+
+DEBUG = True
+
 
 FRONTEND_URL = 'http://127.0.0.1:8000'

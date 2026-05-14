@@ -3,6 +3,97 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/users.css' %}">
+<style>
+    /* ── Toast Notification ── */
+    .toast {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        z-index: 9999;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+        max-width: 400px;
+        line-height: 1.5;
+        animation: toastIn 0.35s cubic-bezier(.21,1.02,.73,1) forwards;
+        transition: opacity 0.4s;
+    }
+    .toast.success { background: #1a4731; color: #d1fae5; border: 1px solid #34d399; }
+    .toast.error   { background: #4a1010; color: #fecaca; border: 1px solid #f87171; }
+    .toast.info    { background: #1e3a5f; color: #bfdbfe; border: 1px solid #60a5fa; }
+    .toast-icon    { font-size: 20px; flex-shrink: 0; }
+    .toast-close   {
+        margin-left: auto;
+        background: none;
+        border: none;
+        color: inherit;
+        font-size: 18px;
+        cursor: pointer;
+        opacity: 0.7;
+        padding: 0 0 0 8px;
+    }
+    .toast-close:hover { opacity: 1; }
+    @keyframes toastIn {
+        from { transform: translateX(120px); opacity: 0; }
+        to   { transform: translateX(0);     opacity: 1; }
+    }
+
+    /* ── Save button states ── */
+    .btn-save:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+    .btn-save.loading::after {
+        content: '';
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(255,255,255,0.4);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        margin-left: 8px;
+        vertical-align: middle;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* ── Row highlight on new user ── */
+    @keyframes rowHighlight {
+        from { background: rgba(99,153,34,0.18); }
+        to   { background: transparent; }
+    }
+    .row-new { animation: rowHighlight 2s ease forwards; }
+
+    /* ── Empty / Loading state ── */
+    .empty-state {
+        text-align: center;
+        padding: 2.5rem !important;
+        color: #888;
+        font-size: 14px;
+    }
+
+    /* ── Skeleton loader ── */
+    .skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.2s infinite;
+        border-radius: 6px;
+        height: 14px;
+        display: inline-block;
+        width: 80%;
+    }
+    @keyframes shimmer {
+        from { background-position: 200% 0; }
+        to   { background-position: -200% 0; }
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -36,13 +127,25 @@
             </tr>
         </thead>
         <tbody id="usersTableBody">
-            <tr><td colspan="8" class="empty-state">Loading users...</td></tr>
+            <!-- Skeleton rows while loading -->
+            {% for i in "12345" %}
+            <tr>
+                <td><span class="skeleton" style="width:20px"></span></td>
+                <td><span class="skeleton" style="width:100px"></span></td>
+                <td><span class="skeleton" style="width:140px"></span></td>
+                <td><span class="skeleton" style="width:50px"></span></td>
+                <td><span class="skeleton" style="width:60px"></span></td>
+                <td><span class="skeleton" style="width:60px"></span></td>
+                <td><span class="skeleton" style="width:80px"></span></td>
+                <td><span class="skeleton" style="width:120px"></span></td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
 
 </div>
 
-<!-- Add/Edit Modal -->
+<!-- ── Add / Edit Modal ── -->
 <div id="userModal" class="modal">
     <div class="modal-content">
 
@@ -50,15 +153,25 @@
         <input type="hidden" id="userId">
 
         <label class="modal-label">Username</label>
-        <input type="text" id="inputUsername" placeholder="Enter username">
+        <input type="text" id="inputUsername" placeholder="Enter username" autocomplete="off">
 
         <label class="modal-label">Email Address</label>
-        <input type="email" id="inputEmail" placeholder="Enter email address">
-        <p class="password-hint">A verification link will be sent to this email.</p>
+        <input type="email" id="inputEmail" placeholder="Enter email address" autocomplete="off">
+        <p class="password-hint">
+            <i class="fas fa-envelope" style="margin-right:4px"></i>
+            A verification link will be sent to this email.
+        </p>
 
         <label class="modal-label" id="passwordLabel">Temporary Password</label>
-        <input type="password" id="inputPassword" placeholder="Enter temporary password">
-        <p class="password-hint" id="passwordHint">Staff will use this to log in after verifying their email.</p>
+        <div style="position:relative">
+            <input type="password" id="inputPassword" placeholder="Enter temporary password" autocomplete="new-password" style="padding-right:40px;width:100%">
+            <button type="button" onclick="togglePassword()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#888;font-size:15px">
+                <i class="fas fa-eye" id="eyeIcon"></i>
+            </button>
+        </div>
+        <p class="password-hint" id="passwordHint">
+            Staff will use this to log in after verifying their email.
+        </p>
 
         <label class="modal-label">Role</label>
         <select id="inputRole">
@@ -67,14 +180,16 @@
         </select>
 
         <div class="modal-actions">
-            <button class="btn-save" onclick="saveUser()">Save</button>
+            <button class="btn-save" id="saveBtn" onclick="saveUser()">
+                <i class="fas fa-save"></i> Save
+            </button>
             <button class="btn-cancel" onclick="closeModal()">Cancel</button>
         </div>
 
     </div>
 </div>
 
-<!-- Deactivate Confirm Modal -->
+<!-- ── Deactivate / Activate Confirm Modal ── -->
 <div id="deactivateModal" class="modal">
     <div class="modal-content">
         <h3 id="deactivateTitle">Deactivate User</h3>
@@ -92,15 +207,18 @@
 
     let allUsers  = [];
     let isEditing = false;
+    let lastAddedId = null;
 
-    // ── Load Users ──
-    async function loadUsers() {
+    // ════════════════════════════════════
+    // LOAD USERS
+    // ════════════════════════════════════
+    async function loadUsers(highlightId = null) {
         try {
             const res  = await fetch('/api/users/');
             const data = await res.json();
             if (data.success) {
                 allUsers = data.users || [];
-                renderUsers(allUsers);
+                renderUsers(allUsers, highlightId);
             } else {
                 showAlert(data.message || 'Failed to load users.', 'error');
             }
@@ -109,8 +227,10 @@
         }
     }
 
-    // ── Render Table ──
-    function renderUsers(users) {
+    // ════════════════════════════════════
+    // RENDER TABLE
+    // ════════════════════════════════════
+    function renderUsers(users, highlightId = null) {
         let search   = document.getElementById('searchInput').value.toLowerCase();
         let filtered = users.filter(u =>
             u.username.toLowerCase().includes(search) ||
@@ -119,19 +239,19 @@
 
         if (filtered.length === 0) {
             document.getElementById('usersTableBody').innerHTML =
-                '<tr><td colspan="8" class="empty-state">No users found.</td></tr>';
+                '<tr><td colspan="8" class="empty-state"><i class="fas fa-user-slash" style="font-size:28px;display:block;margin-bottom:8px;opacity:0.3"></i>No users found.</td></tr>';
             return;
         }
 
         document.getElementById('usersTableBody').innerHTML = filtered.map((u, i) => {
 
             let verifiedBadge = u.is_verified
-                ? '<span class="status-badge verified">Verified</span>'
-                : '<span class="status-badge unverified">Pending</span>';
+                ? '<span class="status-badge verified"><i class="fas fa-check-circle"></i> Verified</span>'
+                : '<span class="status-badge unverified"><i class="fas fa-clock"></i> Pending</span>';
 
             let activeBadge = u.is_active
-                ? '<span class="status-badge active">Active</span>'
-                : '<span class="status-badge inactive">Inactive</span>';
+                ? '<span class="status-badge active"><i class="fas fa-circle" style="font-size:8px"></i> Active</span>'
+                : '<span class="status-badge inactive"><i class="fas fa-circle" style="font-size:8px"></i> Inactive</span>';
 
             let actionBtn = u.is_active
                 ? `<button class="btn-deactivate" onclick="openDeactivateModal('${u.user_id}', '${u.username}', 'deactivate')">
@@ -141,14 +261,16 @@
                        <i class="fas fa-check-circle"></i> Activate
                    </button>`;
 
+            let isNew = highlightId && String(u.user_id) === String(highlightId);
+
             return `
-                <tr class="${!u.is_active ? 'row-inactive' : ''}">
+                <tr class="${!u.is_active ? 'row-inactive' : ''} ${isNew ? 'row-new' : ''}">
                     <td>${i + 1}</td>
                     <td><i class="fas fa-user user-icon"></i> ${u.username}</td>
                     <td>${u.email || '—'}</td>
                     <td>
                         <span class="role-badge role-${u.role}">
-                            ${u.role === 'admin' ? 'Admin' : 'Staff'}
+                            ${u.role === 'admin' ? '<i class="fas fa-crown"></i> Admin' : '<i class="fas fa-user-tie"></i> Staff'}
                         </span>
                     </td>
                     <td>${verifiedBadge}</td>
@@ -167,35 +289,46 @@
 
     document.getElementById('searchInput').addEventListener('input', () => renderUsers(allUsers));
 
-    // ── Add Modal ──
+    // ════════════════════════════════════
+    // ADD MODAL
+    // ════════════════════════════════════
     function openAddModal() {
         isEditing = false;
-        document.getElementById('modalTitle').innerText    = 'Add New User';
-        document.getElementById('userId').value           = '';
-        document.getElementById('inputUsername').value    = '';
-        document.getElementById('inputEmail').value       = '';
-        document.getElementById('inputPassword').value    = '';
-        document.getElementById('inputRole').value        = 'staff';
+        document.getElementById('modalTitle').innerText     = 'Add New User';
+        document.getElementById('userId').value            = '';
+        document.getElementById('inputUsername').value     = '';
+        document.getElementById('inputEmail').value        = '';
+        document.getElementById('inputPassword').value     = '';
+        document.getElementById('inputRole').value         = 'staff';
         document.getElementById('passwordLabel').innerText = 'Temporary Password';
         document.getElementById('passwordHint').innerText  = 'Staff will use this to log in after verifying their email.';
         document.getElementById('inputUsername').disabled  = false;
         document.getElementById('inputEmail').disabled     = false;
+        document.getElementById('saveBtn').innerText       = 'Save';
+        document.getElementById('saveBtn').classList.remove('loading');
+        document.getElementById('saveBtn').disabled        = false;
         document.getElementById('userModal').classList.add('show');
+        setTimeout(() => document.getElementById('inputUsername').focus(), 100);
     }
 
-    // ── Edit Modal ──
+    // ════════════════════════════════════
+    // EDIT MODAL
+    // ════════════════════════════════════
     function openEditModal(id, username, role, email = '') {
         isEditing = true;
-        document.getElementById('modalTitle').innerText    = 'Edit User';
-        document.getElementById('userId').value           = id;
-        document.getElementById('inputUsername').value    = username;
-        document.getElementById('inputEmail').value       = email;
-        document.getElementById('inputPassword').value    = '';
-        document.getElementById('inputRole').value        = role;
+        document.getElementById('modalTitle').innerText     = 'Edit User';
+        document.getElementById('userId').value            = id;
+        document.getElementById('inputUsername').value     = username;
+        document.getElementById('inputEmail').value        = email;
+        document.getElementById('inputPassword').value     = '';
+        document.getElementById('inputRole').value         = role;
         document.getElementById('passwordLabel').innerText = 'New Password (optional)';
         document.getElementById('passwordHint').innerText  = 'Leave blank to keep current password.';
         document.getElementById('inputUsername').disabled  = true;
         document.getElementById('inputEmail').disabled     = true;
+        document.getElementById('saveBtn').innerText       = 'Save Changes';
+        document.getElementById('saveBtn').classList.remove('loading');
+        document.getElementById('saveBtn').disabled        = false;
         document.getElementById('userModal').classList.add('show');
     }
 
@@ -203,7 +336,9 @@
         document.getElementById('userModal').classList.remove('show');
     }
 
-    // ── Save User ──
+    // ════════════════════════════════════
+    // SAVE USER
+    // ════════════════════════════════════
     async function saveUser() {
         let id       = document.getElementById('userId').value;
         let username = document.getElementById('inputUsername').value.trim();
@@ -211,9 +346,28 @@
         let email    = document.getElementById('inputEmail').value.trim();
         let role     = document.getElementById('inputRole').value;
 
-        if (!username)               { showAlert('Username is required.', 'error'); return; }
-        if (!isEditing && !email)    { showAlert('Email is required.', 'error'); return; }
-        if (!isEditing && !password) { showAlert('Temporary password is required.', 'error'); return; }
+        // ── Validation ──
+        if (!username) {
+            shakeInput('inputUsername');
+            showAlert('Username is required.', 'error');
+            return;
+        }
+        if (!isEditing && !email) {
+            shakeInput('inputEmail');
+            showAlert('Email is required.', 'error');
+            return;
+        }
+        if (!isEditing && !password) {
+            shakeInput('inputPassword');
+            showAlert('Temporary password is required.', 'error');
+            return;
+        }
+
+        // ── Loading state ──
+        let saveBtn         = document.getElementById('saveBtn');
+        saveBtn.disabled    = true;
+        saveBtn.classList.add('loading');
+        saveBtn.innerText   = isEditing ? 'Saving changes...' : 'Creating user...';
 
         let url  = isEditing ? `/api/users/${id}/edit/` : '/api/users/add/';
         let body = { username, role };
@@ -230,37 +384,58 @@
                 body: JSON.stringify(body),
             });
             const data = await res.json();
+
             if (data.success) {
-                showAlert(data.message || 'Saved successfully!', 'success');
                 closeModal();
-                loadUsers();
+
+                // ── Show toast notification ──
+                if (!isEditing) {
+                    showToast(
+                        `Staff account created!<br><small>Activation email sent to <strong>${email}</strong></small>`,
+                        'success',
+                        6000
+                    );
+                } else {
+                    showToast(' User updated successfully!', 'success', 4000);
+                }
+
+                // ── Reload and highlight new row ──
+                await loadUsers(data.user_id || null);
+
             } else {
-                showAlert(data.message || 'Something went wrong.', 'error');
+                showToast('❌ ' + (data.message || 'Something went wrong.'), 'error', 5000);
             }
+
         } catch (err) {
-            showAlert('Error: ' + err.message, 'error');
+            showToast('❌ Error: ' + err.message, 'error', 5000);
+        } finally {
+            saveBtn.disabled  = false;
+            saveBtn.classList.remove('loading');
+            saveBtn.innerText = isEditing ? '💾 Save Changes' : '💾 Save';
         }
     }
 
-    // ── Deactivate / Activate Modal ──
+    // ════════════════════════════════════
+    // DEACTIVATE / ACTIVATE
+    // ════════════════════════════════════
     function openDeactivateModal(id, username, action) {
-        document.getElementById('deactivateUserId').value  = id;
-        document.getElementById('deactivateAction').value  = action;
+        document.getElementById('deactivateUserId').value = id;
+        document.getElementById('deactivateAction').value = action;
 
         if (action === 'deactivate') {
-            document.getElementById('deactivateTitle').innerText        = 'Deactivate User';
-            document.getElementById('deactivateText').innerHTML         =
+            document.getElementById('deactivateTitle').innerText      = 'Deactivate User';
+            document.getElementById('deactivateText').innerHTML       =
                 `Are you sure you want to deactivate <strong>${username}</strong>?
                  They will no longer be able to log in. Their records will be preserved.`;
-            document.getElementById('deactivateConfirmBtn').className   = 'btn-delete-confirm';
-            document.getElementById('deactivateConfirmBtn').innerText   = 'Deactivate';
+            document.getElementById('deactivateConfirmBtn').className = 'btn-delete-confirm';
+            document.getElementById('deactivateConfirmBtn').innerText = 'Deactivate';
         } else {
-            document.getElementById('deactivateTitle').innerText        = 'Activate User';
-            document.getElementById('deactivateText').innerHTML         =
+            document.getElementById('deactivateTitle').innerText      = 'Activate User';
+            document.getElementById('deactivateText').innerHTML       =
                 `Are you sure you want to re-activate <strong>${username}</strong>?
                  They will be able to log in again.`;
-            document.getElementById('deactivateConfirmBtn').className   = 'btn-save';
-            document.getElementById('deactivateConfirmBtn').innerText   = 'Activate';
+            document.getElementById('deactivateConfirmBtn').className = 'btn-save';
+            document.getElementById('deactivateConfirmBtn').innerText = 'Activate';
         }
 
         document.getElementById('deactivateModal').classList.add('show');
@@ -275,25 +450,43 @@
         let action = document.getElementById('deactivateAction').value;
         let url    = `/api/users/${id}/${action}/`;
 
+        let confirmBtn      = document.getElementById('deactivateConfirmBtn');
+        confirmBtn.disabled = true;
+        confirmBtn.innerText = 'Processing...';
+
         try {
             const res  = await fetch(url, {
                 method:  'POST',
                 headers: { 'X-CSRFToken': getCookie('csrftoken') },
             });
             const data = await res.json();
+
             if (data.success) {
-                showAlert(data.message || 'Done!', 'success');
                 closeDeactivateModal();
-                loadUsers();
+                showToast(
+                    action === 'deactivate'
+                        ? ' User deactivated successfully.'
+                        : 'User activated successfully.',
+                    action === 'deactivate' ? 'error' : 'success',
+                    4000
+                );
+                await loadUsers();
             } else {
-                showAlert(data.message || 'Failed.', 'error');
+                showToast('❌ ' + (data.message || 'Failed.'), 'error', 4000);
             }
         } catch (err) {
-            showAlert('Error: ' + err.message, 'error');
+            showToast('❌ Error: ' + err.message, 'error', 4000);
+        } finally {
+            confirmBtn.disabled  = false;
+            confirmBtn.innerText = action === 'deactivate' ? 'Deactivate' : 'Activate';
         }
     }
 
-    // ── Helpers ──
+    // ════════════════════════════════════
+    // HELPERS
+    // ════════════════════════════════════
+
+    // Show inline alert (inside page)
     function showAlert(msg, type) {
         let box       = document.getElementById('alertBox');
         box.innerText = msg;
@@ -301,14 +494,92 @@
         setTimeout(() => box.classList.remove('show'), 4000);
     }
 
+    // Show floating toast notification
+    function showToast(msg, type = 'success', duration = 4000) {
+        let existing = document.getElementById('toastNotif');
+        if (existing) existing.remove();
+
+        let icons = { success: '✅', error: '❌', info: 'ℹ️' };
+
+        let toast = document.createElement('div');
+        toast.id  = 'toastNotif';
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <span class="toast-icon">${icons[type] || '📢'}</span>
+            <span>${msg}</span>
+            <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 400);
+            }
+        }, duration);
+    }
+
+    // Shake animation for invalid input
+    function shakeInput(id) {
+        let el = document.getElementById(id);
+        el.style.animation = 'none';
+        el.offsetHeight; // reflow
+        el.style.border = '1.5px solid #f87171';
+        el.style.animation = 'shake 0.4s ease';
+        setTimeout(() => {
+            el.style.border = '';
+            el.style.animation = '';
+        }, 800);
+    }
+
+    // Toggle password visibility
+    function togglePassword() {
+        let input = document.getElementById('inputPassword');
+        let icon  = document.getElementById('eyeIcon');
+        if (input.type === 'password') {
+            input.type      = 'text';
+            icon.className  = 'fas fa-eye-slash';
+        } else {
+            input.type      = 'password';
+            icon.className  = 'fas fa-eye';
+        }
+    }
+
+    // Get CSRF token
     function getCookie(name) {
         let value = `; ${document.cookie}`;
         let parts = value.split(`; ${name}=`);
         if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    function logout() { window.location.href = '/logout/'; }
+    // Close modals on outside click
+    window.addEventListener('click', function(e) {
+        if (e.target.id === 'userModal')       closeModal();
+        if (e.target.id === 'deactivateModal') closeDeactivateModal();
+    });
 
+    // Close modals on Escape key
+    window.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+            closeDeactivateModal();
+        }
+    });
+
+    // Shake keyframe
+    let style = document.createElement('style');
+    style.textContent = `
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%       { transform: translateX(-8px); }
+            40%       { transform: translateX(8px); }
+            60%       { transform: translateX(-5px); }
+            80%       { transform: translateX(5px); }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Initial load
     loadUsers();
 
 </script>
