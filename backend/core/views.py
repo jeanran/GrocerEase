@@ -3,6 +3,7 @@
 # ============================================================
 
 # ========================
+# ========================
 # IMPORTS
 # ========================
 from django.shortcuts import render, redirect
@@ -15,8 +16,9 @@ from django.utils import timezone
 from django.db.models import Sum
 
 from rest_framework.decorators import api_view, permission_classes
-
-from rest_framework.permissions import AllowAny, IsAuthenticated  
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
 
 import hashlib
 import json
@@ -25,8 +27,6 @@ from datetime import date, timedelta
 import calendar
 
 from .models import User, Product, Transaction, TransactionItem
-
-
 # ========================
 # UTILITIES
 # ========================
@@ -94,6 +94,7 @@ def verify_email(request, token):
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
 
 def login_view(request):
     if request.method == 'POST':
@@ -704,7 +705,9 @@ def login_view(request):
     return render(request, 'auth/login.html')
 
 
-# ── API LOGIN (for mobile — returns JWT) ──
+
+
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def api_login(request):
@@ -720,21 +723,16 @@ def api_login(request):
                     'message': 'Email not verified. Please check your inbox.'
                 }, status=status.HTTP_403_FORBIDDEN)
 
-            tokens = get_tokens_for_user(user)
+            # Return simple response for mobile (no JWT)
             return Response({
-                'success':  True,
-                'user_id':  str(user.user_id),
+                'success': True,
+                'user_id': str(user.user_id),
                 'username': user.username,
-                'role':     user.role,
-                'access':   tokens['access'],
-                'refresh':  tokens['refresh'],
+                'role': user.role,
             })
         return Response({'success': False, 'message': 'Invalid password.'}, status=status.HTTP_401_UNAUTHORIZED)
     except User.DoesNotExist:
-        return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)@csrf_exempt
-
-
-
+        return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 @csrf_exempt
 def api_mobile_products(request):
     products = Product.objects.filter(stock__gt=0).values(

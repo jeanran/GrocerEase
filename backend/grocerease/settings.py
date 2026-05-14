@@ -154,12 +154,40 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 
 # CORS (for mobile app)
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 
 # For production, specify exact origins:
+
+
 CORS_ALLOWED_ORIGINS = [
-    
-    "https://grocerease-5xrs.onrender.com",
+    "https://grocerease-5xrs.onrender.com",  # Your web app
+    "exp://192.168.1.x:19000",  # Expo development (your local IP)
+    "exp://localhost:19000",     # Expo local
+    "http://localhost:19006",     # React Native web
+    "http://localhost:8081",      # Metro bundler
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+# Add these headers
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Allow all hosts temporarily (for debugging)
+ALLOWED_HOSTS = [
+    'grocerease-5xrs.onrender.com',
+    'localhost',
+    '127.0.0.1',
+
 ]
 
 # CSRF settings (important for POST requests from mobile)
