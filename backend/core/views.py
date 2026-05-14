@@ -15,6 +15,7 @@ import json
 import secrets
 from datetime import date, timedelta
 import calendar
+import threading
 
 from .models import User, Product, Transaction, TransactionItem
 
@@ -295,13 +296,16 @@ def api_users_add(request):
             is_verified = False,
         )
 
-        try:
-            send_verification_email(user, request, password_plain=password)
-            return JsonResponse({'success': True, 'message': f'User created! Verification email sent to {email}.'})
-        except Exception as e:
-            return JsonResponse({'success': True, 'message': f'User created but email failed: {str(e)}'})
+        # ✅ Send email in background so it doesn't block/timeout
+        thread = threading.Thread(
+            target=send_verification_email,
+            args=(user, request),
+            kwargs={'password_plain': password}
+        )
+        thread.daemon = True
+        thread.start()
 
-
+        return JsonResponse({'success': True, 'message': f'User created! Verification email sent to {email}.'})
 def api_users_edit(request, user_id):
     if request.method == 'POST':
         if not is_logged_in(request) or not is_admin(request):
