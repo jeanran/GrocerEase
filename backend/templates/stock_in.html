@@ -1,0 +1,257 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/stock_in.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="stockin-container">
+
+    <div class="page-header">
+        <h1><i class="fas fa-arrow-circle-down"></i> Stock In</h1>
+        <button class="btn-add" onclick="openAddModal()">
+            <i class="fas fa-plus"></i> Record Stock In
+        </button>
+    </div>
+
+    <!-- Summary -->
+    <div class="stockin-summary">
+        <div class="summary-card">
+            <div class="summary-icon"><i class="fas fa-truck"></i></div>
+            <div class="summary-info">
+                <h4>Total Stock In Records</h4>
+                <span id="totalRecords">0</span>
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon"><i class="fas fa-cubes"></i></div>
+            <div class="summary-info">
+                <h4>Total Units Received</h4>
+                <span id="totalUnits">0</span>
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon"><i class="fas fa-calendar-day"></i></div>
+            <div class="summary-info">
+                <h4>Today's Deliveries</h4>
+                <span id="todayDeliveries">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+        <input type="date" id="filterDate">
+        <input type="text" id="filterSearch" placeholder="Search product or supplier...">
+    </div>
+
+    <!-- Table -->
+    <table class="stockin-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Date</th>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Unit</th>
+                <th>Supplier</th>
+                <th>Received By</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody id="stockInTableBody"></tbody>
+    </table>
+
+</div>
+
+<!-- Record Stock In Modal -->
+<div id="stockInModal" class="modal">
+    <div class="modal-content">
+        <h3>Record Stock In</h3>
+
+        <label class="modal-label">Product</label>
+        <select id="stockInProduct"></select>
+
+        <label class="modal-label">Quantity</label>
+        <input type="number" id="stockInQty" placeholder="Enter quantity" min="1">
+
+        <label class="modal-label">Unit</label>
+        <select id="stockInUnit">
+            <option value="pieces">Pieces</option>
+            <option value="packs">Packs</option>
+            <option value="boxes">Boxes</option>
+            <option value="sacks">Sacks</option>
+            <option value="bottles">Bottles</option>
+            <option value="cans">Cans</option>
+            <option value="kg">Kilograms (kg)</option>
+            <option value="liters">Liters</option>
+            <option value="dozen">Dozen</option>
+            <option value="trays">Trays</option>
+        </select>
+
+        <label class="modal-label">Supplier</label>
+        <input type="text" id="stockInSupplier" placeholder="Enter supplier name">
+
+        <label class="modal-label">Date Received</label>
+        <input type="date" id="stockInDate">
+
+        <label class="modal-label">Notes (optional)</label>
+        <textarea id="stockInNotes" placeholder="Additional notes..."></textarea>
+
+        <div class="modal-actions">
+            <button class="btn-save" onclick="saveStockIn()">Record</button>
+            <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let stockInRecords = [];
+
+    // Set today's date as default
+    document.getElementById('stockInDate').valueAsDate = new Date();
+
+    async function loadProducts() {
+        try {
+            const res  = await fetch('/api/products/');
+            const data = await res.json();
+            const products = data.products || [];
+
+            let select = document.getElementById('stockInProduct');
+            select.innerHTML = products.map(p =>
+                `<option value="${p.product_id}" data-unit="${p.unit || 'pieces'}">${p.name}</option>`
+            ).join('');
+
+            // Auto-fill unit when product changes
+            select.addEventListener('change', function() {
+                let selected = this.options[this.selectedIndex];
+                let unit = selected.getAttribute('data-unit');
+                if (unit) document.getElementById('stockInUnit').value = unit;
+            });
+
+            // Trigger once to set initial unit
+            select.dispatchEvent(new Event('change'));
+        } catch (err) {
+            console.error('Failed to load products:', err);
+        }
+    }
+
+    async function loadStockIn() {
+        try {
+            const res  = await fetch('/api/stock-in/');
+            const data = await res.json();
+            stockInRecords = data.records || [];
+            updateSummary(stockInRecords);
+            renderTable(stockInRecords);
+        } catch (err) {
+            console.error('Failed to load stock in:', err);
+        }
+    }
+
+    function updateSummary(records) {
+        let today = new Date().toISOString().split('T')[0];
+
+        document.getElementById('totalRecords').innerText = records.length;
+        document.getElementById('totalUnits').innerText   = records.reduce((s, r) => s + r.quantity, 0);
+        document.getElementById('todayDeliveries').innerText = records.filter(r =>
+            r.date_received && r.date_received.startsWith(today)
+        ).length;
+    }
+
+    function renderTable(records) {
+        let search = document.getElementById('filterSearch').value.toLowerCase();
+        let date   = document.getElementById('filterDate').value;
+
+        let filtered = records.filter(r => {
+            let matchSearch = !search ||
+                r.product_name.toLowerCase().includes(search) ||
+                (r.supplier || '').toLowerCase().includes(search);
+            let matchDate = !date || (r.date_received && r.date_received.startsWith(date));
+            return matchSearch && matchDate;
+        });
+
+        if (filtered.length === 0) {
+            document.getElementById('stockInTableBody').innerHTML =
+                '<tr><td colspan="8" style="text-align:center;padding:30px;color:#95a5a6;">No records found.</td></tr>';
+            return;
+        }
+
+        document.getElementById('stockInTableBody').innerHTML = filtered.map((r, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${r.date_received ? new Date(r.date_received).toLocaleDateString() : '—'}</td>
+                <td><strong>${r.product_name}</strong></td>
+                <td>${r.quantity}</td>
+                <td>${r.unit || '—'}</td>
+                <td>${r.supplier || '—'}</td>
+                <td>${r.received_by_name || '—'}</td>
+                <td>${r.notes || '—'}</td>
+            </tr>
+        `).join('');
+    }
+
+    function openAddModal() {
+        document.getElementById('stockInModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('stockInModal').style.display = 'none';
+        document.getElementById('stockInQty').value      = '';
+        document.getElementById('stockInSupplier').value = '';
+        document.getElementById('stockInNotes').value    = '';
+        document.getElementById('stockInDate').valueAsDate = new Date();
+    }
+
+    async function saveStockIn() {
+        let product_id = document.getElementById('stockInProduct').value;
+        let quantity   = parseInt(document.getElementById('stockInQty').value);
+        let unit       = document.getElementById('stockInUnit').value;
+        let supplier   = document.getElementById('stockInSupplier').value.trim();
+        let date       = document.getElementById('stockInDate').value;
+        let notes      = document.getElementById('stockInNotes').value.trim();
+
+        if (!product_id || isNaN(quantity) || quantity < 1) {
+            alert('Please select a product and enter a valid quantity.');
+            return;
+        }
+
+        try {
+            const res  = await fetch('/api/stock-in/add/', {
+                method:  'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken':  getCookie('csrftoken'),
+                },
+                body: JSON.stringify({ product_id, quantity, unit, supplier, date_received: date, notes }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Stock In recorded successfully!');
+                closeModal();
+                loadStockIn();
+            } else {
+                alert(data.message || 'Something went wrong.');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    function getCookie(name) {
+        let value = `; ${document.cookie}`;
+        let parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    function logout() { window.location.href = '/logout/'; }
+
+    document.getElementById('filterDate').addEventListener('change', () => renderTable(stockInRecords));
+    document.getElementById('filterSearch').addEventListener('input', () => renderTable(stockInRecords));
+
+    loadProducts();
+    loadStockIn();
+</script>
+
+{% endblock %}

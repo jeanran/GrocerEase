@@ -1,7 +1,7 @@
 /* =========================
    CONTAINER
 ========================= */
-.products-container {
+.stockout-container {
     max-width: 1100px;
     margin: 30px auto;
     background: white;
@@ -28,7 +28,7 @@
 /* =========================
    SUMMARY CARDS
 ========================= */
-.stocks-summary {
+.stockout-summary {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
@@ -45,22 +45,28 @@
     border-left: 4px solid #1e6f5c;
 }
 
-.summary-card.warning { border-left-color: #f39c12; }
-.summary-card.danger  { border-left-color: #e74c3c; }
-
 .summary-icon {
     width: 44px;
     height: 44px;
-    background: #1e6f5c;
     border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    background: #1e6f5c;
 }
 
-.summary-card.warning .summary-icon { background: #f39c12; }
-.summary-card.danger  .summary-icon { background: #e74c3c; }
+/* Per-reason icon colors */
+.summary-icon.sold     { background: #1e6f5c; }
+.summary-icon.damaged  { background: #e74c3c; }
+.summary-icon.expired  { background: #f39c12; }
+.summary-icon.total    { background: #3498db; }
+
+/* Per-reason card border colors */
+.summary-card:nth-child(1) { border-left-color: #1e6f5c; }
+.summary-card:nth-child(2) { border-left-color: #e74c3c; }
+.summary-card:nth-child(3) { border-left-color: #f39c12; }
+.summary-card:nth-child(4) { border-left-color: #3498db; }
 
 .summary-icon i { color: white; font-size: 1.1rem; }
 
@@ -101,32 +107,42 @@
 }
 
 /* =========================
-   SEARCH BAR
+   FILTERS
 ========================= */
-.search-bar {
+.filters {
+    display: flex;
+    gap: 12px;
     margin-bottom: 16px;
+    flex-wrap: wrap;
 }
 
-.search-bar input {
-    width: 100%;
-    max-width: 320px;
-    padding: 10px 16px;
+.filters input[type="date"],
+.filters input[type="text"],
+.filters select {
+    padding: 10px 14px;
     border: 1px solid #ddd;
     border-radius: 8px;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     outline: none;
-    box-sizing: border-box;
     transition: border-color 0.2s;
+    box-sizing: border-box;
+    background: white;
 }
 
-.search-bar input:focus {
+.filters input[type="text"] {
+    flex: 1;
+    min-width: 180px;
+}
+
+.filters input:focus,
+.filters select:focus {
     border-color: #1e6f5c;
 }
 
 /* =========================
    TABLE
 ========================= */
-.products-table {
+.stockout-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
@@ -135,11 +151,11 @@
     white-space: nowrap;
 }
 
-.products-table thead {
+.stockout-table thead {
     background: #f8f9fa;
 }
 
-.products-table th {
+.stockout-table th {
     padding: 12px 16px;
     text-align: left;
     font-weight: 600;
@@ -147,20 +163,20 @@
     border-bottom: 2px solid #e9ecef;
 }
 
-.products-table td {
+.stockout-table td {
     padding: 12px 16px;
     border-bottom: 1px solid #f1f1f1;
     color: #555;
 }
 
-.products-table tr:hover {
-    background: #f8fffe;
+.stockout-table tr:hover {
+    background: #fff8f8;
 }
 
 /* =========================
-   STATUS BADGES
+   REASON BADGES
 ========================= */
-.status-badge {
+.reason-badge {
     padding: 4px 12px;
     border-radius: 20px;
     font-size: 0.8rem;
@@ -170,51 +186,23 @@
     text-align: center;
 }
 
-.status-in-stock  { background: #d4edda; color: #155724; }
-.status-low-stock { background: #fff3cd; color: #856404; }
-.status-out-stock { background: #f8d7da; color: #721c24; }
+.reason-badge.sold     { background: #d4edda; color: #155724; }
+.reason-badge.damaged  { background: #f8d7da; color: #721c24; }
+.reason-badge.expired  { background: #fff3cd; color: #856404; }
+.reason-badge.returned { background: #d1ecf1; color: #0c5460; }
 
 /* =========================
-   ACTION BUTTONS
+   STOCK INFO (in modal)
 ========================= */
-.action-buttons {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.btn-edit {
-    background: #f0ad4e;
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 600;
-    transition: background 0.2s;
-    white-space: nowrap;
-}
-
-.btn-edit:hover {
-    background: #e09800;
-}
-
-.btn-delete {
-    background: #e74c3c;
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 600;
-    transition: background 0.2s;
-    white-space: nowrap;
-}
-
-.btn-delete:hover {
-    background: #c0392b;
+.stock-info {
+    background: #f0faf7;
+    border: 1px solid #b2dfdb;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: #1e6f5c;
+    margin-top: 4px;
+    margin-bottom: 4px;
 }
 
 /* =========================
@@ -257,7 +245,8 @@
 }
 
 .modal-content input,
-.modal-content select {
+.modal-content select,
+.modal-content textarea {
     width: 100%;
     padding: 11px 14px;
     border: 1px solid #ddd;
@@ -267,10 +256,18 @@
     outline: none;
     box-sizing: border-box;
     transition: border-color 0.2s;
+    font-family: inherit;
+    background: white;
+}
+
+.modal-content textarea {
+    resize: vertical;
+    min-height: 80px;
 }
 
 .modal-content input:focus,
-.modal-content select:focus {
+.modal-content select:focus,
+.modal-content textarea:focus {
     border-color: #1e6f5c;
 }
 
@@ -321,18 +318,16 @@
    RESPONSIVE
 ========================= */
 @media (max-width: 768px) {
-    .stocks-summary {
+    .stockout-summary {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .action-buttons {
+    .filters {
         flex-direction: column;
-        align-items: stretch;
     }
 
-    .btn-edit,
-    .btn-delete {
+    .filters input,
+    .filters select {
         width: 100%;
-        text-align: center;
     }
 }

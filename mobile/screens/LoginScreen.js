@@ -26,15 +26,27 @@ export default function LoginScreen({ navigation }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: username.trim(), password }),
             });
+            
             const data = await res.json();
+            
+            // Check if login was successful
             if (data.success) {
+                // Prepare user data for the app
+                const userData = {
+                    user_id: data.user_id,
+                    username: data.username,
+                    role: data.role
+                };
+                
+                // Redirect based on role
                 if (data.role === 'admin') {
-                    navigation.replace('Dashboard', { user: data });
+                    navigation.replace('AdminDashboard', { user: userData });
                 } else {
-                    navigation.replace('POSScreen', { user: data });
+                    navigation.replace('POSScreen', { user: userData });
                 }
             } else {
-                setError(data.message || 'Invalid credentials.');
+                // Handle error messages from backend
+                setError(data.message || 'Invalid credentials. Please try again.');
             }
         } catch (err) {
             setError(`Cannot reach server. Make sure Django is running and IP is correct.\n${err.message}`);
