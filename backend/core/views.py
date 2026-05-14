@@ -42,10 +42,9 @@ def send_verification_email(user, request, password_plain=''):
     user.verification_token = token
     user.save()
 
-    scheme     = 'https' if request.is_secure() else 'http'
-    host       = request.get_host()
-    verify_url = f"{scheme}://{host}/verify/{token}/"
-    login_url  = f"{scheme}://{host}/"
+    base_url   = settings.FRONTEND_URL.rstrip('/')
+    verify_url = f"{base_url}/verify/{token}/"
+    login_url  = f"{base_url}/"
 
     send_mail(
         subject='Activate Your Staff Account',
@@ -70,7 +69,6 @@ Admin Team
         recipient_list=[user.email],
         fail_silently=False,
     )
-
 
 # ========================
 # AUTHENTICATION
