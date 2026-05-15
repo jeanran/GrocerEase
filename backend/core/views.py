@@ -158,7 +158,6 @@ def stock_in_history(request):
         'role':     request.session.get('role'),
     })
 
-
 def stock_out(request):
     if not is_logged_in(request):
         return redirect('login')
