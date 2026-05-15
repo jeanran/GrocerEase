@@ -150,6 +150,15 @@ def stock_in(request):
         'role':     request.session.get('role'),
     })
 
+def stock_in_history(request):
+    """Page view for stock in transaction history"""
+    if not is_logged_in(request):
+        return redirect('login')
+    return render(request, 'stock_in_history.html', {
+        'username': request.session.get('username'),
+        'role':     request.session.get('role'),
+    })
+
 
 def stock_out(request):
     if not is_logged_in(request):

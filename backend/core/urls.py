@@ -17,6 +17,7 @@ urlpatterns = [
     path('dashboard/',  views.dashboard,    name='dashboard'),
     path('products/',   views.products,     name='products'),
     path('stock-in/',   views.stock_in,     name='stock_in'),
+    path('stock-in-history/', views.stock_in_history, name='stock_in_history'),
     path('stock-out/',  views.stock_out,    name='stock_out'),
     path('pos/',        views.pos,          name='pos'),
     path('orders/',     views.orders,       name='orders'),
@@ -50,6 +51,7 @@ urlpatterns = [
     # ========================
     path('api/stock-in/',     views.api_stock_in_list, name='api_stock_in_list'),
     path('api/stock-in/add/', views.api_stock_in_add,  name='api_stock_in_add'),
+    path('api/stock-in-history/', views.stock_in_history, name='api_stock_in_history'),
 
     # ========================
     # STOCK OUT APIs

@@ -3,255 +3,338 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/stock_in.css' %}">
+<style>
+    .stockin-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .page-header {
+        margin-bottom: 25px;
+    }
+    
+    .page-header h1 {
+        font-size: 1.6rem;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .stockin-card {
+        background: white;
+        border-radius: 16px;
+        padding: 30px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-group label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 8px;
+    }
+    
+    .form-group label i {
+        color: #1e6f5c;
+        margin-right: 6px;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 0.95rem;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: #1e6f5c;
+    }
+    
+    .stock-info {
+        background: #e8f5f0;
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        color: #1e6f5c;
+        margin-top: 8px;
+    }
+    
+    .form-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 25px;
+    }
+    
+    .btn-record {
+        flex: 1;
+        background: #1e6f5c;
+        color: white;
+        border: none;
+        padding: 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    
+    .btn-record:hover {
+        background: #0e5545;
+    }
+    
+    .btn-clear {
+        flex: 1;
+        background: #f1f1f1;
+        color: #555;
+        border: none;
+        padding: 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+    
+    .btn-clear:hover {
+        background: #e0e0e0;
+    }
+    
+    .alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+    }
+    
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
 
 <div class="stockin-container">
-
     <div class="page-header">
-        <h1><i class="fas fa-arrow-circle-down"></i> Stock In</h1>
-        <button class="btn-add" onclick="openAddModal()">
-            <i class="fas fa-plus"></i> Record Stock In
-        </button>
+        <h1>
+            <i class="fas fa-arrow-circle-down"></i> 
+            Record Stock In
+        </h1>
+        <p style="color: #7f8c8d;">Add new stock to increase product inventory</p>
     </div>
-
-    <!-- Summary -->
-    <div class="stockin-summary">
-        <div class="summary-card">
-            <div class="summary-icon"><i class="fas fa-truck"></i></div>
-            <div class="summary-info">
-                <h4>Total Stock In Records</h4>
-                <span id="totalRecords">0</span>
+    
+    <div class="stockin-card">
+        <div id="alertMessage" class="alert"></div>
+        
+        <form id="stockInForm">
+            <div class="form-group">
+                <label><i class="fas fa-box"></i> Product *</label>
+                <select id="stockInProduct" required>
+                    <option value="">-- Select Product --</option>
+                </select>
+                <div class="stock-info" id="stockInfo">Current stock: —</div>
             </div>
-        </div>
-        <div class="summary-card">
-            <div class="summary-icon"><i class="fas fa-cubes"></i></div>
-            <div class="summary-info">
-                <h4>Total Units Received</h4>
-                <span id="totalUnits">0</span>
+            
+            <div class="form-group">
+                <label><i class="fas fa-sort-amount-up"></i> Quantity *</label>
+                <input type="number" id="stockInQty" placeholder="Enter quantity" min="1" required>
             </div>
-        </div>
-        <div class="summary-card">
-            <div class="summary-icon"><i class="fas fa-calendar-day"></i></div>
-            <div class="summary-info">
-                <h4>Today's Deliveries</h4>
-                <span id="todayDeliveries">0</span>
+            
+            <div class="form-group">
+                <label><i class="fas fa-cubes"></i> Unit</label>
+                <select id="stockInUnit">
+                    <option value="pieces">Pieces</option>
+                    <option value="packs">Packs</option>
+                    <option value="boxes">Boxes</option>
+                    <option value="sacks">Sacks</option>
+                    <option value="bottles">Bottles</option>
+                    <option value="cans">Cans</option>
+                    <option value="kg">Kilograms (kg)</option>
+                    <option value="liters">Liters</option>
+                    <option value="dozen">Dozen</option>
+                    <option value="trays">Trays</option>
+                </select>
             </div>
-        </div>
-    </div>
-
-    <!-- Filters -->
-    <div class="filters">
-        <input type="date" id="filterDate">
-        <input type="text" id="filterSearch" placeholder="Search product or supplier...">
-    </div>
-
-    <!-- Table -->
-    <table class="stockin-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Date</th>
-                <th>Product</th>
-                <th>Quantity</th>
-                <th>Unit</th>
-                <th>Supplier</th>
-                <th>Received By</th>
-                <th>Notes</th>
-            </tr>
-        </thead>
-        <tbody id="stockInTableBody"></tbody>
-    </table>
-
-</div>
-
-<!-- Record Stock In Modal -->
-<div id="stockInModal" class="modal">
-    <div class="modal-content">
-        <h3>Record Stock In</h3>
-
-        <label class="modal-label">Product</label>
-        <select id="stockInProduct"></select>
-
-        <label class="modal-label">Quantity</label>
-        <input type="number" id="stockInQty" placeholder="Enter quantity" min="1">
-
-        <label class="modal-label">Unit</label>
-        <select id="stockInUnit">
-            <option value="pieces">Pieces</option>
-            <option value="packs">Packs</option>
-            <option value="boxes">Boxes</option>
-            <option value="sacks">Sacks</option>
-            <option value="bottles">Bottles</option>
-            <option value="cans">Cans</option>
-            <option value="kg">Kilograms (kg)</option>
-            <option value="liters">Liters</option>
-            <option value="dozen">Dozen</option>
-            <option value="trays">Trays</option>
-        </select>
-
-        <label class="modal-label">Supplier</label>
-        <input type="text" id="stockInSupplier" placeholder="Enter supplier name">
-
-        <label class="modal-label">Date Received</label>
-        <input type="date" id="stockInDate">
-
-        <label class="modal-label">Notes (optional)</label>
-        <textarea id="stockInNotes" placeholder="Additional notes..."></textarea>
-
-        <div class="modal-actions">
-            <button class="btn-save" onclick="saveStockIn()">Record</button>
-            <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-        </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-truck"></i> Supplier</label>
+                <input type="text" id="stockInSupplier" placeholder="Enter supplier name">
+            </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-calendar-alt"></i> Date Received *</label>
+                <input type="date" id="stockInDate" required>
+            </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-sticky-note"></i> Notes (optional)</label>
+                <textarea id="stockInNotes" rows="3" placeholder="Additional notes..."></textarea>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn-record">
+                    <i class="fas fa-save"></i> Record Stock In
+                </button>
+                <button type="button" class="btn-clear" onclick="resetForm()">
+                    <i class="fas fa-undo-alt"></i> Clear
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
 <script>
-    let stockInRecords = [];
-
+    let allProducts = [];
+    
     // Set today's date as default
     document.getElementById('stockInDate').valueAsDate = new Date();
-
+    
     async function loadProducts() {
         try {
-            const res  = await fetch('/api/products/');
+            const res = await fetch('/api/products/');
             const data = await res.json();
-            const products = data.products || [];
-
+            allProducts = data.products || [];
+            
             let select = document.getElementById('stockInProduct');
-            select.innerHTML = products.map(p =>
-                `<option value="${p.product_id}" data-unit="${p.unit || 'pieces'}">${p.name}</option>`
-            ).join('');
-
-            // Auto-fill unit when product changes
+            select.innerHTML = '<option value="">-- Select Product --</option>' + 
+                allProducts.map(p => 
+                    `<option value="${p.product_id}" data-stock="${p.stock}" data-unit="${p.unit || 'pieces'}">${p.name}</option>`
+                ).join('');
+            
+            // Auto-fill unit and show stock info when product changes
             select.addEventListener('change', function() {
                 let selected = this.options[this.selectedIndex];
-                let unit = selected.getAttribute('data-unit');
-                if (unit) document.getElementById('stockInUnit').value = unit;
+                if (selected && selected.value) {
+                    let stock = selected.getAttribute('data-stock');
+                    let unit = selected.getAttribute('data-unit');
+                    document.getElementById('stockInfo').innerHTML = `Current stock: ${stock} ${unit}`;
+                    if (unit) document.getElementById('stockInUnit').value = unit;
+                } else {
+                    document.getElementById('stockInfo').innerHTML = 'Current stock: —';
+                }
             });
-
-            // Trigger once to set initial unit
-            select.dispatchEvent(new Event('change'));
         } catch (err) {
             console.error('Failed to load products:', err);
+            showAlert('Failed to load products', 'error');
         }
     }
-
-    async function loadStockIn() {
-        try {
-            const res  = await fetch('/api/stock-in/');
-            const data = await res.json();
-            stockInRecords = data.records || [];
-            updateSummary(stockInRecords);
-            renderTable(stockInRecords);
-        } catch (err) {
-            console.error('Failed to load stock in:', err);
-        }
+    
+    function showAlert(message, type) {
+        let alertDiv = document.getElementById('alertMessage');
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+        alertDiv.style.display = 'block';
+        setTimeout(() => {
+            alertDiv.style.display = 'none';
+        }, 4000);
     }
-
-    function updateSummary(records) {
-        let today = new Date().toISOString().split('T')[0];
-
-        document.getElementById('totalRecords').innerText = records.length;
-        document.getElementById('totalUnits').innerText   = records.reduce((s, r) => s + r.quantity, 0);
-        document.getElementById('todayDeliveries').innerText = records.filter(r =>
-            r.date_received && r.date_received.startsWith(today)
-        ).length;
-    }
-
-    function renderTable(records) {
-        let search = document.getElementById('filterSearch').value.toLowerCase();
-        let date   = document.getElementById('filterDate').value;
-
-        let filtered = records.filter(r => {
-            let matchSearch = !search ||
-                r.product_name.toLowerCase().includes(search) ||
-                (r.supplier || '').toLowerCase().includes(search);
-            let matchDate = !date || (r.date_received && r.date_received.startsWith(date));
-            return matchSearch && matchDate;
-        });
-
-        if (filtered.length === 0) {
-            document.getElementById('stockInTableBody').innerHTML =
-                '<tr><td colspan="8" style="text-align:center;padding:30px;color:#95a5a6;">No records found.</td></tr>';
-            return;
-        }
-
-        document.getElementById('stockInTableBody').innerHTML = filtered.map((r, i) => `
-            <tr>
-                <td>${i + 1}</td>
-                <td>${r.date_received ? new Date(r.date_received).toLocaleDateString() : '—'}</td>
-                <td><strong>${r.product_name}</strong></td>
-                <td>${r.quantity}</td>
-                <td>${r.unit || '—'}</td>
-                <td>${r.supplier || '—'}</td>
-                <td>${r.received_by_name || '—'}</td>
-                <td>${r.notes || '—'}</td>
-            </tr>
-        `).join('');
-    }
-
-    function openAddModal() {
-        document.getElementById('stockInModal').style.display = 'flex';
-    }
-
-    function closeModal() {
-        document.getElementById('stockInModal').style.display = 'none';
-        document.getElementById('stockInQty').value      = '';
-        document.getElementById('stockInSupplier').value = '';
-        document.getElementById('stockInNotes').value    = '';
+    
+    function resetForm() {
+        document.getElementById('stockInForm').reset();
         document.getElementById('stockInDate').valueAsDate = new Date();
+        document.getElementById('stockInProduct').selectedIndex = 0;
+        document.getElementById('stockInfo').innerHTML = 'Current stock: —';
+        document.getElementById('alertMessage').style.display = 'none';
     }
-
-    async function saveStockIn() {
+    
+    async function saveStockIn(event) {
+        event.preventDefault();
+        
         let product_id = document.getElementById('stockInProduct').value;
-        let quantity   = parseInt(document.getElementById('stockInQty').value);
-        let unit       = document.getElementById('stockInUnit').value;
-        let supplier   = document.getElementById('stockInSupplier').value.trim();
-        let date       = document.getElementById('stockInDate').value;
-        let notes      = document.getElementById('stockInNotes').value.trim();
-
-        if (!product_id || isNaN(quantity) || quantity < 1) {
-            alert('Please select a product and enter a valid quantity.');
+        let quantity = parseInt(document.getElementById('stockInQty').value);
+        let unit = document.getElementById('stockInUnit').value;
+        let supplier = document.getElementById('stockInSupplier').value.trim();
+        let date = document.getElementById('stockInDate').value;
+        let notes = document.getElementById('stockInNotes').value.trim();
+        
+        if (!product_id) {
+            showAlert('Please select a product', 'error');
             return;
         }
-
+        
+        if (isNaN(quantity) || quantity < 1) {
+            showAlert('Please enter a valid quantity', 'error');
+            return;
+        }
+        
+        if (!date) {
+            showAlert('Please select a date', 'error');
+            return;
+        }
+        
+        // Disable button to prevent double submission
+        let submitBtn = document.querySelector('.btn-record');
+        let originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        submitBtn.disabled = true;
+        
         try {
-            const res  = await fetch('/api/stock-in/add/', {
-                method:  'POST',
+            const res = await fetch('/api/stock-in/add/', {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken':  getCookie('csrftoken'),
+                    'X-CSRFToken': getCookie('csrftoken'),
                 },
-                body: JSON.stringify({ product_id, quantity, unit, supplier, date_received: date, notes }),
+                body: JSON.stringify({ 
+                    product_id, 
+                    quantity, 
+                    unit, 
+                    supplier, 
+                    date_received: date, 
+                    notes 
+                }),
             });
+            
             const data = await res.json();
+            
             if (data.success) {
-                alert('Stock In recorded successfully!');
-                closeModal();
-                loadStockIn();
+                showAlert(`✓ Successfully added ${quantity} ${unit} to inventory!`, 'success');
+                resetForm();
+                await loadProducts(); // Refresh product list with updated stock
             } else {
-                alert(data.message || 'Something went wrong.');
+                showAlert(data.message || 'Something went wrong', 'error');
             }
         } catch (err) {
-            alert('Error: ' + err.message);
+            showAlert('Error: ' + err.message, 'error');
+        } finally {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
         }
     }
-
+    
     function getCookie(name) {
         let value = `; ${document.cookie}`;
         let parts = value.split(`; ${name}=`);
         if (parts.length === 2) return parts.pop().split(';').shift();
     }
-
-    function logout() { window.location.href = '/logout/'; }
-
-    document.getElementById('filterDate').addEventListener('change', () => renderTable(stockInRecords));
-    document.getElementById('filterSearch').addEventListener('input', () => renderTable(stockInRecords));
-
+    
+    // Event listener
+    document.getElementById('stockInForm').addEventListener('submit', saveStockIn);
+    
+    // Initialize
     loadProducts();
-    loadStockIn();
 </script>
 
 {% endblock %}
