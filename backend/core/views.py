@@ -34,6 +34,54 @@ def is_logged_in(request):
 def is_admin(request):
     return request.session.get('role') == 'admin'
 
+# ========================
+# AUTHENTICATION
+# ========================
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+
+        try:
+            user = User.objects.get(username=username)
+
+            if user.password != hash_password(password):
+                messages.error(request, 'Invalid password.')
+                return render(request, 'auth/login.html')
+
+            if not user.is_verified:
+                messages.error(request, 'Please verify your email first. Check your inbox.')
+                return render(request, 'auth/login.html')
+
+            request.session['user_id']  = str(user.user_id)
+            request.session['username'] = user.username
+            request.session['role']     = user.role
+
+            return redirect('dashboard' if user.role == 'admin' else 'products')
+
+        except User.DoesNotExist:
+            messages.error(request, 'User not found.')
+
+    return render(request, 'auth/login.html')
+
+
+def logout_view(request):
+    request.session.flush()
+    return redirect('login')
+
+
+def verify_email(request, token):
+    try:
+        user                    = User.objects.get(verification_token=token)
+        user.is_verified        = True
+        user.verification_token = None
+        user.save()
+        messages.success(request, f'Account verified! You can now log in, {user.username}.')
+    except User.DoesNotExist:
+        messages.error(request, 'Invalid or expired verification link.')
+    return redirect('login')
+
+
 
 # ========================
 # EMAIL
@@ -104,6 +152,17 @@ def stock_in_history(request):
         'username': request.session.get('username'),
         'role':     request.session.get('role'),
     })
+
+def manage_users(request):
+    if not is_logged_in(request):
+        return redirect('login')
+    if not is_admin(request):
+        return redirect('products')
+    return render(request, 'users.html', {
+        'username': request.session.get('username'),
+        'role':     request.session.get('role'),
+    })
+
 
 # ========================
 # PAGE VIEWS
@@ -415,6 +474,82 @@ def api_dashboard_charts(request):
 # ========================
 # USER APIs
 # ========================
+def api_users_list(request):
+    if not is_logged_in(request) or not is_admin(request):
+        return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
+
+    users = User.objects.all().values(
+        'user_id', 'username', 'email', 'role', 'is_verified', 'created_at'
+    )
+    return JsonResponse({'success': True, 'users': list(users)})
+
+
+def api_users_add(request):
+    if request.method == 'POST':
+        if not is_logged_in(request) or not is_admin(request):
+            return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
+
+        data     = json.loads(request.body)
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        email    = data.get('email', '').strip()
+        role     = data.get('role', 'staff')
+
+        if not username or not email:
+            return JsonResponse({'success': False, 'message': 'Username and email are required.'})
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({'success': False, 'message': 'Username already taken.'})
+        if User.objects.filter(email=email).exists():
+            return JsonResponse({'success': False, 'message': 'Email already registered.'})
+
+        user = User.objects.create(
+            username    = username,
+            password    = hash_password(password) if password else '',
+            email       = email,
+            role        = role,
+            is_verified = False,
+        )
+
+        # Send email in background so it doesn't block/timeout
+        thread = threading.Thread(
+            target=send_verification_email,
+            args=(user, request),
+            kwargs={'password_plain': password}
+        )
+        thread.daemon = True
+        thread.start()
+
+        return JsonResponse({'success': True, 'message': f'User created! Verification email sent to {email}.'})
+def api_users_edit(request, user_id):
+    if request.method == 'POST':
+        if not is_logged_in(request) or not is_admin(request):
+            return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
+
+        data = json.loads(request.body)
+        try:
+            user      = User.objects.get(user_id=user_id)
+            user.role = data.get('role', user.role)
+            if data.get('password'):
+                user.password = hash_password(data['password'])
+            user.save()
+            return JsonResponse({'success': True})
+        except User.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'User not found.'})
+
+
+def api_users_delete(request, user_id):
+    if request.method == 'POST':
+        if not is_logged_in(request) or not is_admin(request):
+            return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
+
+        try:
+            user = User.objects.get(user_id=user_id)
+            if str(user.user_id) == request.session.get('user_id'):
+                return JsonResponse({'success': False, 'message': "You can't delete yourself."})
+            user.delete()
+            return JsonResponse({'success': True})
+        except User.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'User not found.'})
 
 
 
