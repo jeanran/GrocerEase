@@ -88,6 +88,23 @@ def dashboard(request):
     })
 
 
+def stock_in(request):
+    if not is_logged_in(request):
+        return redirect('login')
+    return render(request, 'stock_in.html', {
+        'username': request.session.get('username'),
+        'role':     request.session.get('role'),
+    })
+
+def stock_in_history(request):
+    """Page view for stock in transaction history"""
+    if not is_logged_in(request):
+        return redirect('login')
+    return render(request, 'stock_in_history.html', {
+        'username': request.session.get('username'),
+        'role':     request.session.get('role'),
+    })
+
 
 
 
