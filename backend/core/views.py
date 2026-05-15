@@ -119,9 +119,8 @@ def verify_email(request, token):
     return redirect('login')
 
 
-# ========================
 # PAGE VIEWS
-# ========================
+
 def dashboard(request):
     if not is_logged_in(request):
         return redirect('login')
