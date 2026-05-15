@@ -203,7 +203,68 @@ def api_stock_in_add(request):
             return JsonResponse({'success': False, 'message': str(e)})
 
 
+# ========================
+# STOCK OUT APIs
+# ========================
+def api_stock_out_list(request):
+    if not is_logged_in(request):
+        return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
 
+    from .models import StockOut
+    records = StockOut.objects.all().order_by('-date').select_related('product_id', 'recorded_by')
+    result  = []
+    for r in records:
+        try:
+            result.append({
+                'stock_out_id':     str(r.stock_out_id),
+                'product_name':     r.product_id.name,
+                'quantity':         r.quantity,
+                'reason':           r.reason,
+                'date':             r.date.isoformat() if r.date else None,
+                'recorded_by_name': r.recorded_by.username if r.recorded_by else None,
+                'notes':            r.notes,
+                'unit':             r.product_id.unit if r.product_id else None,
+            })
+        except Exception:
+            continue
+    return JsonResponse({'success': True, 'records': result})
+
+
+def api_stock_out_add(request):
+    if request.method == 'POST':
+        if not is_logged_in(request):
+            return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+
+        from .models import StockOut
+        data       = json.loads(request.body)
+        product_id = data.get('product_id')
+        quantity   = int(data.get('quantity', 0))
+
+        if not product_id or quantity < 1:
+            return JsonResponse({'success': False, 'message': 'Invalid product or quantity.'})
+
+        try:
+            product = Product.objects.get(product_id=product_id)
+            if product.stock < quantity:
+                return JsonResponse({'success': False, 'message': 'Not enough stock.'})
+
+            StockOut.objects.create(
+                product_id  = product,
+                quantity    = quantity,
+                reason      = data.get('reason', 'damaged'),
+                recorded_by = User.objects.get(user_id=request.session.get('user_id')),
+                notes       = data.get('notes', ''),
+            )
+            product.stock -= quantity
+            product.save()
+            return JsonResponse({
+                'success': True,
+                'message': f'Stock Out recorded. {product.name} stock updated to {product.stock}.'
+            })
+        except Product.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Product not found.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
 
 
 # ========================
