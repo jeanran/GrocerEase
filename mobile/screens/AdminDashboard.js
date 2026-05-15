@@ -1,13 +1,14 @@
 // AdminDashboard.js - Consistent with web theme
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    View, Text, TouchableOpacity, StyleSheet,
+    View, Text, TouchableOpacity, TextInput, StyleSheet,
     ActivityIndicator, Alert, ScrollView, RefreshControl,
     StatusBar, Modal, Animated, Dimensions, TouchableWithoutFeedback
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import API_URL from '../config';
+import { fetchJson } from '../utils/api';
 
 const COLORS = {
     primary:      '#1e6f5c',
@@ -34,13 +35,21 @@ export default function AdminDashboard({ navigation, route }) {
     const [loading,             setLoading]             = useState(true);
     const [refreshing,          setRefreshing]          = useState(false);
     const [stats,               setStats]               = useState({
-        total_products: 0, low_stock: 0, total_transactions: 0, today_sales: 0,
+        total_products: 0, low_stock: 0, stock_out: 0, total_transactions: 0, today_sales: 0,
     });
+    const [products,            setProducts]            = useState([]);
     const [lowStockProducts,    setLowStockProducts]    = useState([]);
+    const [stockOutProducts,    setStockOutProducts]    = useState([]);
     const [recentTransactions,  setRecentTransactions]  = useState([]);
+    const [searchQuery,         setSearchQuery]         = useState('');
+    const [selectedProduct,     setSelectedProduct]     = useState(null);
+    const [productModalVisible, setProductModalVisible] = useState(false);
+    const [adjustmentType,      setAdjustmentType]      = useState('in');
+    const [adjustmentQty,       setAdjustmentQty]       = useState('');
+    const [processingUpdate,    setProcessingUpdate]    = useState(false);
     const [drawerOpen,          setDrawerOpen]          = useState(false);
 
-    const drawerX = new Animated.Value(-DRAWER_W);
+    const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
     const openDrawer = () => {
         setDrawerOpen(true);
@@ -52,27 +61,65 @@ export default function AdminDashboard({ navigation, route }) {
             .start(() => setDrawerOpen(false));
     };
 
+    const parseJsonResponse = async (response) => {
+        const text = await response.text();
+        if (!response.ok) {
+            throw new Error(`${response.status} ${response.statusText}: ${text}`);
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch (parseError) {
+            throw new Error(`Invalid JSON response: ${text.slice(0, 240)}`);
+        }
+    };
+
     const loadDashboardData = useCallback(async () => {
         try {
-            const [statsRes, productsRes, transactionsRes] = await Promise.all([
-                fetch(`${API_URL}/api/dashboard/stats/`),
+            const [summaryRes, productsRes, lowStockRes] = await Promise.all([
+                fetch(`${API_URL}/api/mobile/daily-summary/`),
                 fetch(`${API_URL}/api/mobile/products/`),
-                fetch(`${API_URL}/api/transactions/`),
+                fetch(`${API_URL}/api/mobile/low-stock/`),
             ]);
 
-            const statsData        = await statsRes.json();
-            const productsData     = await productsRes.json();
-            const transactionsData = await transactionsRes.json();
+            const summaryData  = await parseJsonResponse(summaryRes);
+            const productsData = await parseJsonResponse(productsRes);
+            const lowStockData = await parseJsonResponse(lowStockRes);
 
-            if (statsData.success)        setStats(statsData);
-            if (productsData.success) {
-                const lowStock = productsData.products.filter(
-                    p => p.stock <= (p.reorder_level || 10)
-                );
-                setLowStockProducts(lowStock);
+            let transactionsData = { success: false, transactions: [] };
+            try {
+                transactionsData = await fetchJson(`${API_URL}/api/mobile/transactions/`);
+            } catch (transactionsError) {
+                console.warn('Transactions endpoint unavailable:', transactionsError.message);
             }
-            if (transactionsData.success) setRecentTransactions(transactionsData.transactions.slice(0, 5));
 
+            if (productsData.success) {
+                const allProducts = productsData.products || [];
+                setProducts(allProducts);
+                setStats(prev => ({
+                    ...prev,
+                    total_products: allProducts.length,
+                    stock_out: allProducts.filter(p => p.stock <= 0).length,
+                }));
+                setStockOutProducts(allProducts.filter(p => p.stock <= 0));
+            }
+
+            if (summaryData.success) {
+                setStats(prev => ({
+                    ...prev,
+                    low_stock: summaryData.low_stock_alerts,
+                    total_transactions: summaryData.total_transactions,
+                    today_sales: summaryData.total_sales,
+                }));
+            }
+
+            if (lowStockData.success) {
+                setLowStockProducts(lowStockData.products || []);
+            }
+
+            if (transactionsData.success) {
+                setRecentTransactions(transactionsData.transactions.slice(0, 5));
+            }
         } catch (err) {
             Alert.alert('Error', 'Failed to load dashboard data: ' + err.message);
         } finally {
@@ -80,6 +127,62 @@ export default function AdminDashboard({ navigation, route }) {
             setRefreshing(false);
         }
     }, []);
+
+    const openProductModal = (product) => {
+        setSelectedProduct(product);
+        setAdjustmentType('in');
+        setAdjustmentQty('');
+        setProductModalVisible(true);
+    };
+
+    const closeProductModal = () => {
+        setProductModalVisible(false);
+        setSelectedProduct(null);
+        setAdjustmentQty('');
+        setProcessingUpdate(false);
+    };
+
+    const handleStockAdjustment = async () => {
+        if (!selectedProduct) return;
+        const quantity = parseInt(adjustmentQty, 10);
+        if (!quantity || quantity <= 0) {
+            Alert.alert('Validation', 'Enter a valid quantity.');
+            return;
+        }
+
+        const endpoint = adjustmentType === 'in'
+            ? `${API_URL}/api/mobile/stock-in/add/`
+            : `${API_URL}/api/mobile/stock-out/add/`;
+
+        setProcessingUpdate(true);
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: user?.user_id,
+                    product_id: selectedProduct.product_id,
+                    quantity,
+                    unit: selectedProduct.unit || 'pieces',
+                    reason: adjustmentType === 'out' ? 'adjustment' : undefined,
+                }),
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                Alert.alert('Success', data.message || 'Stock updated successfully.');
+                closeProductModal();
+                setRefreshing(true);
+                loadDashboardData();
+            } else {
+                Alert.alert('Error', data.message || 'Unable to update stock.');
+            }
+        } catch (err) {
+            Alert.alert('Error', err.message);
+        } finally {
+            setProcessingUpdate(false);
+        }
+    };
 
     useEffect(() => {
         loadDashboardData();
@@ -91,6 +194,11 @@ export default function AdminDashboard({ navigation, route }) {
         setRefreshing(true);
         loadDashboardData();
     };
+
+    const filteredProducts = products.filter(p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.category || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     const handleLogout = () => {
         closeDrawer();
@@ -127,29 +235,51 @@ export default function AdminDashboard({ navigation, route }) {
                             </Text>
                         </View>
 
-                        <TouchableOpacity style={styles.navItem} onPress={closeDrawer}>
+                        <TouchableOpacity style={styles.navItem} onPress={() => {
+                            closeDrawer();
+                        }}>
                             <FontAwesome5 name="tachometer-alt" size={18} color={COLORS.white} />
                             <Text style={styles.navItemText}>Dashboard</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.navItem} onPress={closeDrawer}>
+                        <TouchableOpacity style={styles.navItem} onPress={() => {
+                            closeDrawer();
+                            navigation.navigate('Inventory', { user });
+                        }}>
                             <FontAwesome5 name="boxes" size={18} color={COLORS.white} />
-                            <Text style={styles.navItemText}>Stocks</Text>
+                            <Text style={styles.navItemText}>Inventory</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.navItem} onPress={closeDrawer}>
+                        <TouchableOpacity style={styles.navItem} onPress={() => {
+                            closeDrawer();
+                            navigation.navigate('StockIn', { user });
+                        }}>
                             <FontAwesome5 name="arrow-circle-down" size={18} color={COLORS.white} />
                             <Text style={styles.navItemText}>Stock In</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.navItem} onPress={closeDrawer}>
+                        <TouchableOpacity style={styles.navItem} onPress={() => {
+                            closeDrawer();
+                            navigation.navigate('StockOut', { user });
+                        }}>
                             <FontAwesome5 name="arrow-circle-up" size={18} color={COLORS.white} />
                             <Text style={styles.navItemText}>Stock Out</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.navItem} onPress={closeDrawer}>
-                            <FontAwesome5 name="chart-line" size={18} color={COLORS.white} />
-                            <Text style={styles.navItemText}>Reports</Text>
+                        <TouchableOpacity style={styles.navItem} onPress={() => {
+                            closeDrawer();
+                            navigation.navigate('StockInHistory', { user });
+                        }}>
+                            <FontAwesome5 name="history" size={18} color={COLORS.white} />
+                            <Text style={styles.navItemText}>Stock In History</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.navItem} onPress={() => {
+                            closeDrawer();
+                            navigation.navigate('Users', { user });
+                        }}>
+                            <FontAwesome5 name="users" size={18} color={COLORS.white} />
+                            <Text style={styles.navItemText}>Manage Users</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.drawerLogout} onPress={handleLogout}>
@@ -172,6 +302,85 @@ export default function AdminDashboard({ navigation, route }) {
                 </View>
             </View>
 
+            <Modal
+                visible={productModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={closeProductModal}
+            >
+                <TouchableWithoutFeedback onPress={closeProductModal}>
+                    <View style={styles.backdrop} />
+                </TouchableWithoutFeedback>
+                <View style={styles.productModalContainer}>
+                    <View style={styles.productModalSheet}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Product Details</Text>
+                            <TouchableOpacity onPress={closeProductModal}>
+                                <Ionicons name="close" size={24} color={COLORS.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {selectedProduct ? (
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                <View style={styles.modalInfoRow}>
+                                    <Text style={styles.modalLabel}>Product</Text>
+                                    <Text style={styles.modalValue}>{selectedProduct.name}</Text>
+                                </View>
+                                <View style={styles.modalInfoRow}>
+                                    <Text style={styles.modalLabel}>Category</Text>
+                                    <Text style={styles.modalValue}>{selectedProduct.category || 'Uncategorized'}</Text>
+                                </View>
+                                <View style={styles.modalInfoRow}>
+                                    <Text style={styles.modalLabel}>Current Stock</Text>
+                                    <Text style={[styles.modalValue, selectedProduct.stock <= 0 && { color: COLORS.danger }]}> {selectedProduct.stock} {selectedProduct.unit || ''}</Text>
+                                </View>
+                                <View style={styles.modalInfoRow}>
+                                    <Text style={styles.modalLabel}>Reorder Level</Text>
+                                    <Text style={styles.modalValue}>{selectedProduct.reorder_level || 0}</Text>
+                                </View>
+                                <View style={styles.modalInfoRow}>
+                                    <Text style={styles.modalLabel}>Status</Text>
+                                    <Text style={[styles.statusBadge, selectedProduct.stock <= 0 ? styles.statusOut : selectedProduct.stock <= (selectedProduct.reorder_level || 10) ? styles.statusLow : styles.statusOk]}>
+                                        {selectedProduct.stock <= 0 ? 'Out of stock' : selectedProduct.stock <= (selectedProduct.reorder_level || 10) ? 'Low stock' : 'In stock'}
+                                    </Text>
+                                </View>
+
+                                <Text style={styles.sectionTitle}>Adjust Stock</Text>
+                                <View style={styles.adjustmentRow}>
+                                    <TouchableOpacity
+                                        style={[styles.adjustButton, adjustmentType === 'in' && styles.adjustButtonActive]}
+                                        onPress={() => setAdjustmentType('in')}
+                                    >
+                                        <Text style={[styles.adjustButtonText, adjustmentType === 'in' && styles.adjustButtonTextActive]}>Stock In</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.adjustButton, adjustmentType === 'out' && styles.adjustButtonActive]}
+                                        onPress={() => setAdjustmentType('out')}
+                                    >
+                                        <Text style={[styles.adjustButtonText, adjustmentType === 'out' && styles.adjustButtonTextActive]}>Stock Out</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <TextInput
+                                    style={styles.adjustInput}
+                                    placeholder="Enter quantity"
+                                    placeholderTextColor={COLORS.textMuted}
+                                    keyboardType="numeric"
+                                    value={adjustmentQty}
+                                    onChangeText={setAdjustmentQty}
+                                />
+                                <TouchableOpacity
+                                    style={[styles.primaryButton, processingUpdate && { opacity: 0.7 }]}
+                                    onPress={handleStockAdjustment}
+                                    disabled={processingUpdate}
+                                >
+                                    <Text style={styles.primaryButtonText}>{processingUpdate ? 'Updating...' : 'Apply Update'}</Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        ) : null}
+                    </View>
+                </View>
+            </Modal>
+
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -182,6 +391,16 @@ export default function AdminDashboard({ navigation, route }) {
                         Welcome, <Text style={styles.welcomeName}>{user?.username || 'Admin'}</Text>
                     </Text>
                 </View>
+
+                {/* Alerts banner */}
+                {(lowStockProducts.length > 0 || stockOutProducts.length > 0) && (
+                    <View style={styles.alertBanner}>
+                        <FontAwesome5 name="bell" size={14} color={COLORS.white} />
+                        <Text style={styles.alertBannerText}>
+                            {lowStockProducts.length} low-stock item{lowStockProducts.length === 1 ? '' : 's'} and {stockOutProducts.length} out-of-stock product{stockOutProducts.length === 1 ? '' : 's'} detected.
+                        </Text>
+                    </View>
+                )}
 
                 {/* Stats Cards */}
                 <View style={styles.statsGrid}>
@@ -205,10 +424,12 @@ export default function AdminDashboard({ navigation, route }) {
 
                     <View style={styles.statCard}>
                         <View style={styles.statIconBg}>
-                            <Ionicons name="receipt-outline" size={22} color={COLORS.primary} />
+                            <FontAwesome5 name="times-circle" size={22} color={COLORS.danger} />
                         </View>
-                        <Text style={styles.statNumber}>{stats.total_transactions}</Text>
-                        <Text style={styles.statLabel}>Transactions</Text>
+                        <Text style={[styles.statNumber, stats.stock_out > 0 && { color: COLORS.danger }]}>
+                            {stats.stock_out}
+                        </Text>
+                        <Text style={styles.statLabel}>Stock Out</Text>
                     </View>
 
                     <View style={styles.statCard}>
@@ -220,6 +441,41 @@ export default function AdminDashboard({ navigation, route }) {
                         </Text>
                         <Text style={styles.statLabel}>Today's Sales</Text>
                     </View>
+                </View>
+
+                {/* Inventory List */}
+                <View style={styles.inventorySection}>
+                    <View style={styles.sectionHeader}>
+                        <FontAwesome5 name="boxes" size={16} color={COLORS.text} />
+                        <Text style={styles.sectionTitle}>Inventory</Text>
+                    </View>
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search products or categories"
+                        placeholderTextColor={COLORS.textMuted}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                    />
+                    {filteredProducts.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyText}>No matching products found.</Text>
+                        </View>
+                    ) : (
+                        filteredProducts.slice(0, 12).map(product => (
+                            <TouchableOpacity key={product.product_id} style={styles.productRow} onPress={() => openProductModal(product)}>
+                                <View style={styles.productMeta}>
+                                    <Text style={styles.productName}>{product.name}</Text>
+                                    <Text style={styles.productCategory}>{product.category || 'General'}</Text>
+                                </View>
+                                <View style={styles.productDetailGroup}>
+                                    <Text style={styles.productStock}>{product.stock} {product.unit || ''}</Text>
+                                    <Text style={[styles.productStatus, product.stock <= 0 ? styles.statusOut : product.stock <= (product.reorder_level || 10) ? styles.statusLow : styles.statusOk]}>
+                                        {product.stock <= 0 ? 'Out' : product.stock <= (product.reorder_level || 10) ? 'Low' : 'OK'}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))
+                    )}
                 </View>
 
                 {/* Low Stock Alerts */}
@@ -242,6 +498,29 @@ export default function AdminDashboard({ navigation, route }) {
                                 </View>
                                 <View style={styles.restockBtn}>
                                     <Text style={styles.restockBtnText}>Low</Text>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {stockOutProducts.length > 0 && (
+                    <View style={styles.alertSection}>
+                        <View style={styles.sectionHeader}>
+                            <FontAwesome5 name="times-circle" size={16} color={COLORS.danger} />
+                            <Text style={styles.sectionTitle}>Out of Stock</Text>
+                        </View>
+                        {stockOutProducts.map(product => (
+                            <View key={product.product_id} style={styles.alertItem}>
+                                <View style={styles.alertIcon}>
+                                    <FontAwesome5 name="times" size={14} color={COLORS.white} />
+                                </View>
+                                <View style={styles.alertInfo}>
+                                    <Text style={styles.alertName}>{product.name}</Text>
+                                    <Text style={styles.alertStock}>Restock immediately</Text>
+                                </View>
+                                <View style={[styles.restockBtn, { backgroundColor: COLORS.danger }]}> 
+                                    <Text style={[styles.restockBtnText, { color: COLORS.white }]}>Out</Text>
                                 </View>
                             </View>
                         ))}
@@ -395,6 +674,116 @@ const styles = StyleSheet.create({
     },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
     sectionTitle:  { fontSize: 16, fontWeight: '700', color: COLORS.text },
+
+    inventorySection: {
+        backgroundColor: COLORS.white,
+        marginHorizontal: 12,
+        borderRadius: 12,
+        padding: 16,
+        elevation: 2,
+    },
+    searchInput: {
+        backgroundColor: COLORS.bg,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        color: COLORS.text,
+        marginBottom: 14,
+    },
+    productRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    productMeta: { flex: 1, paddingRight: 10 },
+    productName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+    productCategory: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+    productDetailGroup: { alignItems: 'flex-end' },
+    productStock: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+    productStatus: {
+        marginTop: 4,
+        fontSize: 11,
+        fontWeight: '700',
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+    statusOk: { color: COLORS.success, backgroundColor: '#e6f7ed' },
+    statusLow: { color: COLORS.warning, backgroundColor: '#fff4e5' },
+    statusOut: { color: COLORS.danger, backgroundColor: '#fdecea' },
+    alertBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.danger,
+        marginHorizontal: 12,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+    },
+    alertBannerText: { color: COLORS.white, marginLeft: 8, fontSize: 13, flex: 1 },
+    productModalContainer: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' },
+    productModalSheet: {
+        margin: 20,
+        borderRadius: 20,
+        backgroundColor: COLORS.white,
+        padding: 20,
+        maxHeight: '85%',
+        elevation: 6,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+    modalInfoRow: { marginBottom: 12 },
+    modalLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
+    modalValue: { fontSize: 15, color: COLORS.text, fontWeight: '600' },
+    statusBadge: {
+        alignSelf: 'flex-start',
+        fontSize: 12,
+        fontWeight: '700',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    adjustmentRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+    adjustButton: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 12,
+        backgroundColor: COLORS.border,
+        alignItems: 'center',
+    },
+    adjustButtonActive: { backgroundColor: COLORS.primary },
+    adjustButtonText: { color: COLORS.textMuted, fontWeight: '700' },
+    adjustButtonTextActive: { color: COLORS.white },
+    adjustInput: {
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        borderRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        color: COLORS.text,
+        marginBottom: 12,
+        backgroundColor: '#fbfbfb',
+    },
+    primaryButton: {
+        backgroundColor: COLORS.primary,
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    primaryButtonText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
 
     alertItem: {
         flexDirection:     'row',
