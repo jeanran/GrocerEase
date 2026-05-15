@@ -359,8 +359,8 @@
                 closeModal();
                 showToast(
                     isEditing
-                        ? '✅ User updated successfully!'
-                        : `✅ Staff account created!<br><small>Activation email sent to <strong>${email}</strong></small>`,
+                        ? ' User updated successfully!'
+                        : `Staff account created!<br><small>Activation email sent to <strong>${email}</strong></small>`,
                     'success',
                     isEditing ? 4000 : 6000
                 );
@@ -454,5 +454,8 @@
     loadUsers();
 
 </script>
+
+{% endblock %}
+
 
 {% endblock %}
