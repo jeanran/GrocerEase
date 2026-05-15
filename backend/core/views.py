@@ -119,8 +119,9 @@ def verify_email(request, token):
     return redirect('login')
 
 
+# ========================
 # PAGE VIEWS
-
+# ========================
 def dashboard(request):
     if not is_logged_in(request):
         return redirect('login')
@@ -157,6 +158,7 @@ def stock_in_history(request):
         'username': request.session.get('username'),
         'role':     request.session.get('role'),
     })
+
 
 def stock_out(request):
     if not is_logged_in(request):
