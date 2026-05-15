@@ -92,67 +92,6 @@ def dashboard(request):
 
 
 
-# ========================
-# STOCK IN APIs
-# ========================
-def api_stock_in_list(request):
-    if not is_logged_in(request):
-        return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
-
-    from .models import StockIn
-    records = StockIn.objects.all().order_by('-date_received').select_related('product_id', 'received_by')
-    result  = []
-    for r in records:
-        result.append({
-            'stock_in_id':      str(r.stock_in_id),
-            'product_name':     r.product_id.name,
-            'quantity':         r.quantity,
-            'unit':             r.unit,
-            'supplier':         r.supplier,
-            'date_received':    r.date_received.isoformat() if r.date_received else None,
-            'received_by_name': r.received_by.username if r.received_by else None,
-            'notes':            r.notes,
-        })
-    return JsonResponse({'success': True, 'records': result})
-
-
-def api_stock_in_add(request):
-    if request.method == 'POST':
-        if not is_logged_in(request):
-            return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
-
-        from .models import StockIn
-        data          = json.loads(request.body)
-        product_id    = data.get('product_id')
-        quantity      = int(data.get('quantity', 0))
-
-        if not product_id or quantity < 1:
-            return JsonResponse({'success': False, 'message': 'Invalid product or quantity.'})
-
-        try:
-            product = Product.objects.get(product_id=product_id)
-            StockIn.objects.create(
-                product_id    = product,
-                quantity      = quantity,
-                unit          = data.get('unit', ''),
-                supplier      = data.get('supplier', ''),
-                date_received = data.get('date_received') or timezone.now(),
-                received_by   = User.objects.get(user_id=request.session.get('user_id')),
-                notes         = data.get('notes', ''),
-            )
-            product.stock += quantity
-            product.save()
-            return JsonResponse({
-                'success': True,
-                'message': f'Stock In recorded. {product.name} stock updated to {product.stock}.'
-            })
-        except Product.DoesNotExist:
-            return JsonResponse({'success': False, 'message': 'Product not found.'})
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)})
-
-
-
 
 
 
