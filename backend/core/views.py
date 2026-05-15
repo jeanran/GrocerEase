@@ -106,7 +106,13 @@ def stock_in_history(request):
     })
 
 
-
+def stock_out(request):
+    if not is_logged_in(request):
+        return redirect('login')
+    return render(request, 'stock_out.html', {
+        'username': request.session.get('username'),
+        'role':     request.session.get('role'),
+    })
 
 
 
