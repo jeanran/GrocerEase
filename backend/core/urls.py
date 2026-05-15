@@ -78,8 +78,16 @@ urlpatterns = [
     path('api/mobile/products/',      views.api_mobile_products,     name='api_mobile_products'),
     path('api/mobile/low-stock/',     views.api_mobile_low_stock,    name='api_mobile_low_stock'),
     path('api/mobile/daily-summary/', views.api_mobile_daily_summary,name='api_mobile_daily_summary'),
-    path('api/mobile/stock-in/add/',  views.api_mobile_stock_in,     name='api_mobile_stock_in'),
-    path('api/mobile/stock-out/add/', views.api_mobile_stock_out,    name='api_mobile_stock_out'),
-    path('api/mobile/checkout/',      views.api_mobile_checkout,     name='api_mobile_checkout'),
-
+    path('api/mobile/stock-in/',      views.api_mobile_stock_in_list, name='api_mobile_stock_in_list'),
+    path('api/mobile/stock-in/history/', views.api_mobile_stock_in_history, name='api_mobile_stock_in_history'),
+    path('api/mobile/stock-in/add/',  views.api_mobile_stock_in,      name='api_mobile_stock_in'),
+    path('api/mobile/stock-out/',     views.api_mobile_stock_out_list, name='api_mobile_stock_out_list'),
+    path('api/mobile/stock-out/add/', views.api_mobile_stock_out,      name='api_mobile_stock_out'),
+    path('api/mobile/checkout/',      views.api_mobile_checkout,      name='api_mobile_checkout'),
+    path('api/mobile/transactions/',  views.api_mobile_transactions,  name='api_mobile_transactions'),
+    path('api/mobile/users/',         views.api_mobile_users_list,   name='api_mobile_users_list'),
+    path('api/mobile/users/add/',     views.api_mobile_users_add,    name='api_mobile_users_add'),
+    path('api/mobile/users/<str:user_id>/edit/',   views.api_mobile_users_edit,   name='api_mobile_users_edit'),
+    path('api/mobile/users/<str:user_id>/delete/', views.api_mobile_users_delete, name='api_mobile_users_delete'),
+]
 ]
