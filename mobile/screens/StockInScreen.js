@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, TouchableOpacity, TextInput, StyleSheet,
     ActivityIndicator, Alert, ScrollView, RefreshControl,
-    StatusBar, Modal, FlatList, TouchableWithoutFeedback,
+    StatusBar, Modal, FlatList, TouchableWithoutFeedback, Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
 import { FontAwesome5, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import API_URL from '../config';
@@ -57,6 +57,10 @@ export default function StockInScreen({ navigation, route }) {
         date_received_month: initialMonth,
         date_received_day: initialDay,
     });
+
+    const [productSelectMode, setProductSelectMode] = useState('picker'); // 'picker' or 'emoji'
+
+    const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
     const loadData = useCallback(async () => {
         try {
@@ -177,9 +181,8 @@ export default function StockInScreen({ navigation, route }) {
 
         setProcessing(true);
         try {
-            const response = await fetch(`${API_URL}/api/mobile/stock-in/add/`, {
+            const data = await fetchJson(`${API_URL}/api/mobile/stock-in/add/`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     product_id: formData.product_id,
                     quantity: parseInt(formData.quantity, 10),
@@ -190,8 +193,6 @@ export default function StockInScreen({ navigation, route }) {
                     user_id: user?.user_id,
                 }),
             });
-
-            const data = await response.json();
             if (data.success) {
                 Alert.alert('Success', data.message || 'Stock In recorded successfully.');
                 closeForm();
@@ -261,6 +262,33 @@ export default function StockInScreen({ navigation, route }) {
         );
     };
 
+    const getEmojiForProduct = (p) => {
+        const name = (p.name || '').toLowerCase();
+        const cat = (p.category || '').toLowerCase();
+        if (cat.includes('fruit') || name.includes('apple') || name.includes('banana')) return '🍎';
+        if (cat.includes('veg') || name.includes('carrot') || name.includes('lettuce')) return '🥕';
+        if (cat.includes('dairy') || name.includes('milk') || name.includes('cheese')) return '🧀';
+        if (cat.includes('drink') || name.includes('cola') || name.includes('water')) return '🥤';
+        if (cat.includes('snack') || name.includes('chips') || name.includes('cookie')) return '🍪';
+        if (name.includes('soap') || cat.includes('clean')) return '🧼';
+        if (name.includes('bread') || cat.includes('bakery')) return '🍞';
+        if (name.includes('egg')) return '🥚';
+        return '📦';
+    };
+
+    const renderEmojiProduct = ({ item }) => (
+        <TouchableOpacity
+            style={styles.emojiCard}
+            onPress={() => {
+                setFormData(prev => ({ ...prev, product_id: item.product_id, unit: item.unit || 'pieces' }));
+            }}
+        >
+            <Text style={styles.emoji}>{getEmojiForProduct(item)}</Text>
+            <Text style={styles.emojiName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.emojiStock}>+{item.stock ?? 0}</Text>
+        </TouchableOpacity>
+    );
+
     const getFilteredRecords = () => {
         return records.filter((item) => {
             let matches = true;
@@ -319,6 +347,27 @@ export default function StockInScreen({ navigation, route }) {
         );
     }
 
+    const handleClear = () => {
+        const today = new Date();
+        const year = String(today.getFullYear());
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        setFormData({
+            product_id: '',
+            quantity: '',
+            supplier: '',
+            unit: 'pieces',
+            notes: '',
+            date_received: `${year}-${month}-${day}`,
+            date_received_year: year,
+            date_received_month: month,
+            date_received_day: day,
+        });
+        setProductSearch('');
+    };
+
+    const insets = useSafeAreaInsets();
+
     return (
         <SafeAreaView style={styles.root}>
             <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
@@ -333,7 +382,17 @@ export default function StockInScreen({ navigation, route }) {
                 <View style={{ width: 26 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <View style={styles.pageBody}>
+                <View style={styles.card}>
+                    <View style={styles.cardHeader}>
+                        <View style={styles.cardHeaderLeft}>
+                            <FontAwesome5 name="download" size={18} color={COLORS.primary} />
+                            <Text style={styles.cardTitle}>Record Stock In</Text>
+                        </View>
+                        <Text style={styles.cardSubtitle}>Add new stock to increase product inventory</Text>
+                    </View>
+
+                    <ScrollView contentContainerStyle={[styles.cardContent, { paddingBottom: insets.bottom + 110 }]} keyboardShouldPersistTaps="handled">
                 <View style={styles.formGroup}>
                     <Text style={styles.label}>Product *</Text>
                     <View style={styles.pickerContainer}>
@@ -354,6 +413,31 @@ export default function StockInScreen({ navigation, route }) {
                             ))}
                         </Picker>
                     </View>
+                    <View style={styles.viewToggleBarSmall}>
+                        <TouchableOpacity
+                            style={[styles.viewToggleButtonSmall, productSelectMode === 'picker' && styles.viewToggleActiveSmall]}
+                            onPress={() => setProductSelectMode('picker')}
+                        >
+                            <FontAwesome5 name="list" size={12} color={productSelectMode === 'picker' ? COLORS.white : COLORS.text} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.viewToggleButtonSmall, productSelectMode === 'emoji' && styles.viewToggleActiveSmall]}
+                            onPress={() => setProductSelectMode('emoji')}
+                        >
+                            <Text style={{ fontSize: 16 }}>{'😀'}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {productSelectMode === 'emoji' && (
+                        <FlatList
+                            data={getFilteredProducts()}
+                            keyExtractor={(item) => item.product_id.toString()}
+                            renderItem={renderEmojiProduct}
+                            numColumns={4}
+                            contentContainerStyle={styles.gridContent}
+                            showsVerticalScrollIndicator={false}
+                        />
+                    )}
                     <Text style={styles.fieldNote}>Current stock: {products.find(p => p.product_id === formData.product_id)?.stock ?? '—'}</Text>
                 </View>
 
@@ -417,18 +501,31 @@ export default function StockInScreen({ navigation, route }) {
                     />
                 </View>
 
-                <TouchableOpacity
-                    style={[styles.submitButton, processing && { opacity: 0.7 }]}
-                    onPress={handleAddStockIn}
-                    disabled={processing}
-                >
-                    {processing ? (
-                        <ActivityIndicator size="small" color={COLORS.white} />
-                    ) : (
-                        <Text style={styles.submitButtonText}>Record Stock In</Text>
-                    )}
-                </TouchableOpacity>
-            </ScrollView>
+                
+                    <View style={styles.formActions}>
+                        <TouchableOpacity
+                            style={[styles.recordButton, processing && { opacity: 0.7 }]}
+                            onPress={handleAddStockIn}
+                            disabled={processing}
+                        >
+                            {processing ? (
+                                <ActivityIndicator size="small" color={COLORS.white} />
+                            ) : (
+                                <>
+                                    <FontAwesome5 name="save" size={14} color={COLORS.white} />
+                                    <Text style={styles.recordButtonText}>  Record Stock In</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
+                            <FontAwesome5 name="undo" size={14} color={COLORS.text} />
+                            <Text style={styles.clearButtonText}>  Clear</Text>
+                        </TouchableOpacity>
+                    </View>
+                    </ScrollView>
+                </View>
+            </View>
         </SafeAreaView>
     );
 }
@@ -695,5 +792,146 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: COLORS.white,
+    },
+    pageBody: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 20,
+    },
+    card: {
+        width: '94%',
+        maxWidth: 720,
+        backgroundColor: COLORS.white,
+        borderRadius: 12,
+        padding: 0,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        overflow: 'hidden',
+    },
+    cardHeader: {
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+        backgroundColor: '#fafcfa',
+    },
+    cardHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    cardTitle: {
+        marginLeft: 8,
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.text,
+    },
+    cardSubtitle: {
+        marginTop: 8,
+        fontSize: 12,
+        color: COLORS.textMuted,
+    },
+    cardContent: {
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+    },
+    currentStockBox: {
+        backgroundColor: COLORS.primaryLight,
+        padding: 10,
+        borderRadius: 6,
+        marginBottom: 10,
+    },
+    fieldNote: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginTop: 8,
+    },
+    formActions: {
+        flexDirection: 'row',
+        paddingHorizontal: 4,
+        paddingVertical: 14,
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    recordButton: {
+        flex: 1,
+        backgroundColor: COLORS.primary,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+    },
+    recordButtonText: {
+        color: COLORS.white,
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    clearButton: {
+        flex: 1,
+        backgroundColor: '#f3f4f6',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    clearButtonText: {
+        color: COLORS.text,
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    viewToggleBarSmall: {
+        flexDirection: 'row',
+        marginTop: 8,
+        gap: 8,
+    },
+    viewToggleButtonSmall: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: COLORS.white,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    viewToggleActiveSmall: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    gridContent: {
+        paddingVertical: 12,
+        paddingHorizontal: 8,
+    },
+    emojiCard: {
+        flex: 1,
+        margin: 6,
+        minWidth: 64,
+        maxWidth: 96,
+        backgroundColor: COLORS.white,
+        borderRadius: 8,
+        paddingVertical: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    emoji: {
+        fontSize: 26,
+    },
+    emojiName: {
+        marginTop: 6,
+        fontSize: 11,
+        color: COLORS.text,
+        fontWeight: '600',
+    },
+    emojiStock: {
+        marginTop: 4,
+        fontSize: 11,
+        color: COLORS.textMuted,
+        fontWeight: '700',
     },
 });

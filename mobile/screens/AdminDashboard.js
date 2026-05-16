@@ -76,15 +76,11 @@ export default function AdminDashboard({ navigation, route }) {
 
     const loadDashboardData = useCallback(async () => {
         try {
-            const [summaryRes, productsRes, lowStockRes] = await Promise.all([
-                fetch(`${API_URL}/api/mobile/daily-summary/`),
-                fetch(`${API_URL}/api/mobile/products/`),
-                fetch(`${API_URL}/api/mobile/low-stock/`),
+            const [summaryData, productsData, lowStockData] = await Promise.all([
+                fetchJson(`${API_URL}/api/mobile/daily-summary/`),
+                fetchJson(`${API_URL}/api/mobile/products/`),
+                fetchJson(`${API_URL}/api/mobile/low-stock/`),
             ]);
-
-            const summaryData  = await parseJsonResponse(summaryRes);
-            const productsData = await parseJsonResponse(productsRes);
-            const lowStockData = await parseJsonResponse(lowStockRes);
 
             let transactionsData = { success: false, transactions: [] };
             try {
@@ -156,7 +152,7 @@ export default function AdminDashboard({ navigation, route }) {
 
         setProcessingUpdate(true);
         try {
-            const response = await fetch(endpoint, {
+            const data = await fetchJson(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -167,7 +163,6 @@ export default function AdminDashboard({ navigation, route }) {
                     reason: adjustmentType === 'out' ? 'adjustment' : undefined,
                 }),
             });
-            const data = await response.json();
 
             if (data.success) {
                 Alert.alert('Success', data.message || 'Stock updated successfully.');

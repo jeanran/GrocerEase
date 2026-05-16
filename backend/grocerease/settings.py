@@ -23,6 +23,7 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
+    '192.168.100.38',
     'grocerease-5xrs.onrender.com',
     '.onrender.com',
 ]

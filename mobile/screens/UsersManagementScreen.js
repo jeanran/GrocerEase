@@ -122,13 +122,11 @@ export default function UsersManagementScreen({ navigation, route }) {
                 ? { role: formData.role, ...(formData.password && { password: formData.password }) }
                 : formData;
 
-            const response = await fetch(endpoint, {
+            const data = await fetchJson(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
 
-            const data = await response.json();
             if (data.success) {
                 Alert.alert('Success', data.message || 'User saved successfully.');
                 closeForm();

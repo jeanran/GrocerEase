@@ -4,6 +4,7 @@ import {
     StyleSheet, ActivityIndicator, ScrollView,
     KeyboardAvoidingView, Platform, StatusBar
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
 import API_URL from '../config';
 
@@ -23,30 +24,40 @@ export default function LoginScreen({ navigation }) {
 
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/login/`, {
+            const url = `${API_URL}/api/login/`;
+            const response = await fetch(url, {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body:    JSON.stringify({ username: username.trim(), password }),
             });
 
-            const data = await response.json();
+            const text = await response.text();
+            let data;
+            try {
+                data = text ? JSON.parse(text) : {};
+            } catch (parseErr) {
+                throw new Error(`Invalid JSON response from ${url}: ${text.slice(0, 300)}`);
+            }
 
-            if (data.success) {
+            if (response.ok && data.success) {
                 const userData = {
                     user_id:  data.user_id,
                     username: data.username,
                     role:     data.role,
                 };
 
+                if (data.token) {
+                    await AsyncStorage.setItem('jwt_token', data.token);
+                }
+
                 if (data.role === 'admin') {
                     navigation.replace('AdminDashboard', { user: userData });
-                } else if (data.role === 'staff') {
-                    navigation.replace('StaffDashboard', { user: userData });
                 } else {
                     setError('You do not have access to this app.');
                 }
             } else {
-                setError(data.message || 'Invalid credentials. Please try again.');
+                const serverMessage = data.message || data.error || response.statusText;
+                setError(`Login failed (${response.status}): ${serverMessage}`);
             }
 
         } catch (err) {

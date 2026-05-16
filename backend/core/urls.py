@@ -76,8 +76,13 @@ urlpatterns = [
     # ========================
     path('api/login/',                views.api_login,               name='api_login'),
     path('api/mobile/products/',      views.api_mobile_products,     name='api_mobile_products'),
+    path('api/mobile/products/add/',  views.api_mobile_products_add, name='api_mobile_products_add'),
+    path('api/mobile/products/<str:product_id>/', views.api_mobile_product_detail, name='api_mobile_product_detail'),
+    path('api/mobile/products/<str:product_id>/edit/', views.api_mobile_products_edit, name='api_mobile_products_edit'),
+    path('api/mobile/products/<str:product_id>/delete/', views.api_mobile_products_delete, name='api_mobile_products_delete'),
     path('api/mobile/low-stock/',     views.api_mobile_low_stock,    name='api_mobile_low_stock'),
     path('api/mobile/daily-summary/', views.api_mobile_daily_summary,name='api_mobile_daily_summary'),
+    path('api/mobile/login/',         views.api_login,               name='api_mobile_login'),
     path('api/mobile/stock-in/',      views.api_mobile_stock_in_list, name='api_mobile_stock_in_list'),
     path('api/mobile/stock-in/history/', views.api_mobile_stock_in_history, name='api_mobile_stock_in_history'),
     path('api/mobile/stock-in/add/',  views.api_mobile_stock_in,      name='api_mobile_stock_in'),
@@ -90,4 +95,4 @@ urlpatterns = [
     path('api/mobile/users/<str:user_id>/edit/',   views.api_mobile_users_edit,   name='api_mobile_users_edit'),
     path('api/mobile/users/<str:user_id>/delete/', views.api_mobile_users_delete, name='api_mobile_users_delete'),
 ]
-]
+

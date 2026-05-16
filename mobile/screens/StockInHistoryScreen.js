@@ -22,7 +22,8 @@ const COLORS = {
     textMuted:    '#718096',
 };
 
-export default function StockInHistoryScreen({ navigation }) {
+export default function StockInHistoryScreen({ navigation, route }) {
+    const { user } = route.params || {}; 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [records, setRecords] = useState([]);
@@ -30,11 +31,20 @@ export default function StockInHistoryScreen({ navigation }) {
     const [filterSupplierSearch, setFilterSupplierSearch] = useState('');
     const [filterDateText, setFilterDateText] = useState('');
     const [filterDate, setFilterDate] = useState('');
-    const [filterMonth, setFilterMonth] = useState('');
 
     const loadRecords = useCallback(async () => {
         try {
-            const data = await fetchJson(`${API_URL}/api/mobile/stock-in/`);
+            let data;
+            try {
+                data = await fetchJson(`${API_URL}/api/mobile/stock-in/history/`);
+            } catch (err) {
+                if (err.status === 404) {
+                    data = await fetchJson(`${API_URL}/api/stock-in/`);
+                } else {
+                    throw err;
+                }
+            }
+
             if (data.success) {
                 setRecords(data.records || []);
             } else {
@@ -79,11 +89,6 @@ export default function StockInHistoryScreen({ navigation }) {
             if (filterDate) {
                 matches = matches && item.date_received?.split('T')[0] === filterDate;
             }
-            if (filterMonth) {
-                if (!item.date_received) return false;
-                const month = String(new Date(item.date_received).getMonth() + 1);
-                matches = matches && month === filterMonth;
-            }
             return matches;
         });
     };
@@ -103,57 +108,10 @@ export default function StockInHistoryScreen({ navigation }) {
         return { totalRecords, totalUnits, totalSuppliers, thisMonthCount };
     };
 
-    const renderRecordItem = ({ item }) => (
-        <View style={styles.recordCard}>
-            <View style={styles.recordHeader}>
-                <Text style={styles.recordProductName}>{item.product_name}</Text>
-                <Text style={styles.recordQuantity}>+{item.quantity} {item.unit}</Text>
-            </View>
-            <View style={styles.recordRow}>
-                <Text style={styles.recordLabel}>Supplier:</Text>
-                <Text style={styles.recordValue}>{item.supplier || 'N/A'}</Text>
-            </View>
-            <View style={styles.recordRow}>
-                <Text style={styles.recordLabel}>Date Received:</Text>
-                <Text style={styles.recordValue}>{formatDate(item.date_received)}</Text>
-            </View>
-            <View style={styles.recordRow}>
-                <Text style={styles.recordLabel}>Received by:</Text>
-                <Text style={styles.recordValue}>{item.received_by_name || 'Unknown'}</Text>
-            </View>
-            {item.notes ? (
-                <View style={styles.recordRow}>
-                    <Text style={styles.recordLabel}>Notes:</Text>
-                    <Text style={styles.recordValue}>{item.notes}</Text>
-                </View>
-            ) : null}
-        </View>
-    );
-
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.root}>
-                <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 30 }} />
-            </SafeAreaView>
-        );
-    }
-
     const { totalRecords, totalUnits, totalSuppliers, thisMonthCount } = calculateStats();
 
-    return (
-        <SafeAreaView style={styles.root}>
-            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <MaterialIcons name="arrow-back" size={26} color={COLORS.text} />
-                </TouchableOpacity>
-                <View style={styles.headerText}>
-                    <Text style={styles.headerTitle}>Stock In History</Text>
-                    <Text style={styles.headerSubtitle}>View stock in totals and record history</Text>
-                </View>
-                <View style={{ width: 26 }} />
-            </View>
-
+    const renderListHeader = () => (
+        <>
             <View style={styles.statsContainer}>
                 <View style={styles.statsCard}>
                     <View style={styles.statsIconContainer}><FontAwesome5 name="boxes" size={18} color={COLORS.primary} /></View>
@@ -215,34 +173,77 @@ export default function StockInHistoryScreen({ navigation }) {
                         maxLength={10}
                     />
                 </View>
-                <View style={styles.filterControl}>
-                    <Text style={styles.filterLabel}>Month</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="1-12"
-                        keyboardType="number-pad"
-                        value={filterMonth}
-                        onChangeText={(text) => setFilterMonth(text.replace(/\D/g, '').slice(0, 2))}
-                        maxLength={2}
-                    />
+            </View>
+        </>
+    );
+
+    const renderRecordItem = ({ item }) => (
+        <View style={styles.recordCard}>
+            <View style={styles.recordHeader}>
+                <Text style={styles.recordProductName}>{item.product_name}</Text>
+                <Text style={styles.recordQuantity}>+{item.quantity} {item.unit}</Text>
+            </View>
+            <View style={styles.recordRow}>
+                <Text style={styles.recordLabel}>Supplier:</Text>
+                <Text style={styles.recordValue}>{item.supplier || 'N/A'}</Text>
+            </View>
+            <View style={styles.recordRow}>
+                <Text style={styles.recordLabel}>Date Received:</Text>
+                <Text style={styles.recordValue}>{formatDate(item.date_received)}</Text>
+            </View>
+            <View style={styles.recordRow}>
+                <Text style={styles.recordLabel}>Received by:</Text>
+                <Text style={styles.recordValue}>{item.received_by_name || 'Unknown'}</Text>
+            </View>
+            {item.notes ? (
+                <View style={styles.recordRow}>
+                    <Text style={styles.recordLabel}>Notes:</Text>
+                    <Text style={styles.recordValue}>{item.notes}</Text>
                 </View>
+            ) : null}
+        </View>
+    );
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.root}>
+                <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 30 }} />
+            </SafeAreaView>
+        );
+    }
+
+    return (
+        <SafeAreaView style={styles.root}>
+            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <MaterialIcons name="arrow-back" size={26} color={COLORS.text} />
+                </TouchableOpacity>
+                <View style={styles.headerText}>
+                    <Text style={styles.headerTitle}>Stock In History</Text>
+                    <Text style={styles.headerSubtitle}>View stock in totals and record history</Text>
+                </View>
+                <View style={{ width: 26 }} />
             </View>
 
-            {filteredRecords.length === 0 ? (
-                <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>No stock in records found.</Text>
-                </View>
-            ) : (
+            <View style={styles.content}>
                 <FlatList
                     data={filteredRecords}
                     keyExtractor={(item) => item.stock_in_id?.toString()}
                     renderItem={renderRecordItem}
-                    contentContainerStyle={styles.listContent}
+                    ListHeaderComponent={renderListHeader}
+                    ListHeaderComponentStyle={styles.listHeader}
+                    contentContainerStyle={[styles.listContent, styles.listContentGrow]}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
                     showsVerticalScrollIndicator={true}
                     style={styles.list}
+                    ListEmptyComponent={
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyText}>No stock in records found.</Text>
+                        </View>
+                    }
                 />
-            )}
+            </View>
         </SafeAreaView>
     );
 }
@@ -389,10 +390,19 @@ const styles = StyleSheet.create({
         fontSize: 14,
         textAlign: 'center',
     },
+    content: {
+        flex: 1,
+    },
     list: {
         flex: 1,
     },
+    listHeader: {
+        paddingBottom: 12,
+    },
     listContent: {
         paddingBottom: 24,
+    },
+    listContentGrow: {
+        flexGrow: 1,
     },
 });

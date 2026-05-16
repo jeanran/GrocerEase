@@ -10,6 +10,7 @@ import { FontAwesome5, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';   // ← NEW
 import { colors, globalStyles } from '../styles/GlobalStyles';
 import API_URL from '../config';
+import { fetchJson } from '../utils/api';
 
 const C = {
     sidebar:      '#1e2d3d',
@@ -153,16 +154,14 @@ useEffect(() => {
 
         setCheckoutLoading(true);
         try {
-            const res  = await fetch(`${API_URL}/api/mobile/checkout/`, {
+            const data = await fetchJson(`${API_URL}/api/mobile/checkout/`, {
                 method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body:    JSON.stringify({
                     user_id: user?.user_id,
                     items:   cart.map(i => ({ product_id: i.product_id, quantity: i.quantity, price: i.price })),
                     total:   getTotal(),
                 }),
             });
-            const data = await res.json();
             if (data.success) {
                 setLastReceipt({
                     receiptNo:  data.receipt_no || `RCP-${Date.now()}`,

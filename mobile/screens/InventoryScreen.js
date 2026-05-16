@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import API_URL from '../config';
+import { fetchJson } from '../utils/api';
 
 const COLORS = {
     primary:      '#1e6f5c',
@@ -33,9 +34,7 @@ export default function InventoryScreen({ navigation }) {
 
     const loadProducts = useCallback(async () => {
         try {
-            const response = await fetch(`${API_URL}/api/mobile/products/`);
-            const data = await response.json();
-
+            const data = await fetchJson(`${API_URL}/api/mobile/products/`);
             if (data.success) {
                 setProducts(data.products || []);
             }

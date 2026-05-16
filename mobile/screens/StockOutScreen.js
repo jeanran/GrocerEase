@@ -202,22 +202,34 @@ export default function StockOutScreen({ navigation, route }) {
 
         setProcessing(true);
         try {
-            const response = await fetch(`${API_URL}/api/mobile/stock-out/add/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    product_id: formData.product_id,
-                    quantity: parseInt(formData.quantity, 10),
-                    reason: formData.reason,
-                    unit: formData.unit,
-                    supplier: formData.supplier,
-                    date: formData.date,
-                    notes: formData.notes,
-                    user_id: user?.user_id,
-                }),
+            const body = JSON.stringify({
+                product_id: formData.product_id,
+                quantity: parseInt(formData.quantity, 10),
+                reason: formData.reason,
+                unit: formData.unit,
+                supplier: formData.supplier,
+                date: formData.date,
+                notes: formData.notes,
+                user_id: user?.user_id,
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await fetchJson(`${API_URL}/api/mobile/stock-out/add/`, {
+                    method: 'POST',
+                    body,
+                });
+            } catch (err) {
+                if (err.status === 404) {
+                    data = await fetchJson(`${API_URL}/api/stock-out/add/`, {
+                        method: 'POST',
+                        body,
+                    });
+                } else {
+                    throw err;
+                }
+            }
+
             if (data.success) {
                 Alert.alert('Success', data.message || 'Stock Out recorded successfully.');
                 closeForm();
@@ -228,6 +240,7 @@ export default function StockOutScreen({ navigation, route }) {
             }
         } catch (err) {
             Alert.alert('Error', err.message);
+            console.warn('StockOut add failed:', err);
         } finally {
             setProcessing(false);
         }
@@ -307,57 +320,8 @@ export default function StockOutScreen({ navigation, route }) {
         return colors[reason] || COLORS.textMuted;
     };
 
-    const renderRecordItem = ({ item }) => (
-        <View style={styles.recordCard}>
-            <View style={styles.recordHeader}>
-                <Text style={styles.recordProductName}>{item.product_name}</Text>
-                <Text style={styles.recordQuantity}>-{item.quantity} {item.unit}</Text>
-            </View>
-            <View style={styles.recordRow}>
-                <Text style={styles.recordLabel}>Reason:</Text>
-                <View style={[styles.reasonBadge, { backgroundColor: getReasonColor(item.reason) + '20' }]}>
-                    <Text style={[styles.reasonText, { color: getReasonColor(item.reason) }]}>
-                        {item.reason.charAt(0).toUpperCase() + item.reason.slice(1)}
-                    </Text>
-                </View>
-            </View>
-            <View style={styles.recordRow}>
-                <Text style={styles.recordLabel}>Date:</Text>
-                <Text style={styles.recordValue}>{formatDate(item.date)}</Text>
-            </View>
-            <View style={styles.recordRow}>
-                <Text style={styles.recordLabel}>Recorded by:</Text>
-                <Text style={styles.recordValue}>{item.recorded_by_name || 'Unknown'}</Text>
-            </View>
-            {item.notes && (
-                <View style={styles.recordRow}>
-                    <Text style={styles.recordLabel}>Notes:</Text>
-                    <Text style={styles.recordValue}>{item.notes}</Text>
-                </View>
-            )}
-        </View>
-    );
-
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.root}>
-                <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 20 }} />
-            </SafeAreaView>
-        );
-    }
-
-    return (
-        <SafeAreaView style={styles.root}>
-            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <MaterialIcons name="arrow-back" size={26} color={COLORS.text} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Stock Out</Text>
-                <View style={{ width: 26 }} />
-            </View>
-
+    const renderListHeader = () => (
+        <>
             <View style={styles.statsContainer}>
                 {(() => {
                     const { totalRecords, totalDamaged, totalExpired, totalSold } = calculateStats();
@@ -420,22 +384,79 @@ export default function StockOutScreen({ navigation, route }) {
                     </View>
                 </View>
             </View>
+        </>
+    );
 
-            {getFilteredRecords().length === 0 ? (
-                <View style={styles.emptyState}>
-                    <FontAwesome5 name="inbox" size={48} color={COLORS.border} />
-                    <Text style={styles.emptyStateText}>No stock out records yet</Text>
+    const renderRecordItem = ({ item }) => (
+        <View style={styles.recordCard}>
+            <View style={styles.recordHeader}>
+                <Text style={styles.recordProductName}>{item.product_name}</Text>
+                <Text style={styles.recordQuantity}>-{item.quantity} {item.unit}</Text>
+            </View>
+            <View style={styles.recordRow}>
+                <Text style={styles.recordLabel}>Reason:</Text>
+                <View style={[styles.reasonBadge, { backgroundColor: getReasonColor(item.reason) + '20' }]}>
+                    <Text style={[styles.reasonText, { color: getReasonColor(item.reason) }]}>
+                        {item.reason.charAt(0).toUpperCase() + item.reason.slice(1)}
+                    </Text>
                 </View>
-            ) : (
+            </View>
+            <View style={styles.recordRow}>
+                <Text style={styles.recordLabel}>Date:</Text>
+                <Text style={styles.recordValue}>{formatDate(item.date)}</Text>
+            </View>
+            <View style={styles.recordRow}>
+                <Text style={styles.recordLabel}>Recorded by:</Text>
+                <Text style={styles.recordValue}>{item.recorded_by_name || 'Unknown'}</Text>
+            </View>
+            {item.notes && (
+                <View style={styles.recordRow}>
+                    <Text style={styles.recordLabel}>Notes:</Text>
+                    <Text style={styles.recordValue}>{item.notes}</Text>
+                </View>
+            )}
+        </View>
+    );
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.root}>
+                <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 20 }} />
+            </SafeAreaView>
+        );
+    }
+
+    return (
+        <SafeAreaView style={styles.root}>
+            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <MaterialIcons name="arrow-back" size={26} color={COLORS.text} />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Stock Out</Text>
+                <View style={{ width: 26 }} />
+            </View>
+
+            <View style={styles.content}>
                 <FlatList
                     data={getFilteredRecords()}
                     keyExtractor={(item) => item.stock_out_id}
                     renderItem={renderRecordItem}
-                    contentContainerStyle={styles.listContent}
+                    ListHeaderComponent={renderListHeader}
+                    ListHeaderComponentStyle={styles.listHeader}
+                    contentContainerStyle={[styles.listContent, styles.listContentGrow]}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                     showsVerticalScrollIndicator={false}
+                    style={styles.list}
+                    ListEmptyComponent={
+                        <View style={styles.emptyState}>
+                            <FontAwesome5 name="inbox" size={48} color={COLORS.border} />
+                            <Text style={styles.emptyStateText}>No stock out records yet</Text>
+                        </View>
+                    }
                 />
-            )}
+            </View>
 
             <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={closeForm}>
                 <TouchableWithoutFeedback onPress={closeForm}>
@@ -730,10 +751,22 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: 'center',
     },
+    content: {
+        flex: 1,
+    },
+    list: {
+        flex: 1,
+    },
+    listHeader: {
+        paddingBottom: 12,
+    },
     listContent: {
         paddingHorizontal: 16,
         paddingTop: 12,
         paddingBottom: 20,
+    },
+    listContentGrow: {
+        flexGrow: 1,
     },
     recordCard: {
         backgroundColor: COLORS.white,
