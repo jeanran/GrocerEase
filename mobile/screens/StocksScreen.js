@@ -194,7 +194,7 @@ export default function StocksScreen({ navigation, route }) {
                                         <Text style={s.drawerLogoText}>Grocer<Text style={{color:C.warning}}>Ease</Text></Text>
                                     </View>
                                     {[
-                                        {icon:'tachometer-alt', label:'Dashboard', onPress:closeDrawer},
+                                        { icon: 'tachometer-alt', label: 'Dashboard', onPress: () => { closeDrawer(); navigation.navigate('AdminDashboard', { user }); } },
                                         {icon:'boxes', label:'Stocks', onPress:()=>{closeDrawer();navigation.navigate('Stocks',{user});}}, 
                                         { icon: 'boxes', label: 'Inventory', onPress: () => { closeDrawer(); navigation.navigate('Inventory', { user }); } },
 

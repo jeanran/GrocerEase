@@ -76,6 +76,20 @@ export default function InventoryScreen({ navigation, route }) {
         loadProducts();
     }, [loadProducts]);
 
+    
+useEffect(() => {
+    const routeFilterType = route.params?.filterType;
+    
+    if (routeFilterType === 'low-stock') {
+        setFilterType('low-stock');
+        navigation.setParams({ filterType: undefined });
+    } else if (routeFilterType === 'out-of-stock') {
+        setFilterType('out-of-stock');
+        navigation.setParams({ filterType: undefined });
+    }
+}, [route.params?.filterType]);
+   
+
     const onRefresh = () => {
         setRefreshing(true);
         loadProducts();
@@ -145,7 +159,7 @@ export default function InventoryScreen({ navigation, route }) {
             (p.category || '').toLowerCase().includes(searchQuery.toLowerCase());
 
         if (filterType === 'low-stock') {
-            return matchesSearch && p.stock <= p.reorder_level && p.stock > 0;
+            return matchesSearch && p.stock <= (p.reorder_level || 10) && p.stock > 0;
         } else if (filterType === 'out-of-stock') {
             return matchesSearch && p.stock <= 0;
         }
@@ -204,7 +218,7 @@ export default function InventoryScreen({ navigation, route }) {
                         <FontAwesome5 name="money-bill-wave" size={12} color={C.gray} />
                         <Text style={styles.detailLabel}>Price:</Text>
                         <Text style={styles.detailValue}>
-                            ₱{typeof item.price === 'number' ? item.price.toFixed(2) : '0.00'}
+                            ₱{typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price || 0).toFixed(2)}
                         </Text>
                     </View>
                 </View>

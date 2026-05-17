@@ -43,6 +43,7 @@ function AdminDashboard({ navigation, route }) {
     const [products,            setProducts]            = useState([]);
     const [lowStockProducts,    setLowStockProducts]    = useState([]);
     const [stockOutProducts,    setStockOutProducts]    = useState([]);
+    const [recentTransactions,  setRecentTransactions]  = useState([]);
     const [selectedProduct,     setSelectedProduct]     = useState(null);
     const [productModalVisible, setProductModalVisible] = useState(false);
     const [adjustmentType,      setAdjustmentType]      = useState('in');
@@ -140,11 +141,12 @@ function AdminDashboard({ navigation, route }) {
     // ── load all dashboard data ──────────────────────────────────────
     const loadDashboardData = useCallback(async () => {
         try {
-            const [summaryData, productsData, lowStockData, chartsData] = await Promise.all([
+            const [summaryData, productsData, lowStockData, chartsData, txData] = await Promise.all([
                 fetchJson(`${API_URL}/api/mobile/daily-summary/`),
                 fetchJson(`${API_URL}/api/mobile/products/`),
                 fetchJson(`${API_URL}/api/mobile/low-stock/`),
                 fetchJson(`${API_URL}/api/mobile/charts/`),
+                fetchJson(`${API_URL}/api/mobile/transactions/`),
             ]);
 
             if (productsData.success) {
@@ -169,6 +171,15 @@ function AdminDashboard({ navigation, route }) {
                 const cm = chartsData.current_month ?? new Date().getMonth();
                 setCurrentMonth(cm);
                 setSelectedMonth(prev => prev ?? cm);
+            }
+
+            // Load recent transactions
+            if (txData.success) {
+                const txs = (txData.transactions || []).slice(0, 5).map(t => ({
+                    ...t,
+                    short_id: String(t.transaction_id).slice(0, 8).toUpperCase(),
+                }));
+                setRecentTransactions(txs);
             }
         } catch (err) {
             Alert.alert('Error', 'Failed to load dashboard: ' + err.message);
@@ -243,6 +254,17 @@ function AdminDashboard({ navigation, route }) {
     };
 
     const handleLogout = () => { closeDrawer(); navigation.replace('Login'); };
+
+    
+const handleStockAlertPress = () => {
+
+    
+    closeDrawer();
+    navigation.navigate('Inventory', { 
+        user: user,
+        filterType: 'low-stock'
+    });
+};
 
     const getStatus = (p) => {
         if (p.stock <= 0)                       return { label:'Out of Stock', style:s.badgeOut };
@@ -344,9 +366,14 @@ function AdminDashboard({ navigation, route }) {
                     <Text style={s.pageTitleText}>Dashboard Overview</Text>
                 </View>
 
-                {/* Stock Alert Banner */}
+                {/* Stock Alert Banner - FIXED: navigates to Inventory with low stock filter */}
                 {(lowStockProducts.length > 0 || stockOutProducts.length > 0) && (
-                    <TouchableOpacity style={s.alertBanner} onPress={()=>navigation.navigate('Inventory',{user})} activeOpacity={0.9}>
+    <TouchableOpacity style={s.alertBanner} onPress={handleStockAlertPress} activeOpacity={0.9}>
+                
+
+
+
+    
                         <View style={s.alertBannerIcon}><FontAwesome5 name="exclamation-triangle" size={18} color={C.white}/></View>
                         <View style={{flex:1}}>
                             <Text style={s.alertBannerTitle}>Stock Alert!</Text>
@@ -475,22 +502,41 @@ function AdminDashboard({ navigation, route }) {
                     </View>
                 )}
 
-                {/* Recent Inventory Notes - REPLACES Recent Transactions */}
-<View style={s.mobileCard}>
-    <View style={s.mobileCardHeader}>
-        <FontAwesome5 name="sticky-note" size={16} color={C.primary} />
-        <Text style={s.mobileCardTitle}>Recent Inventory Notes</Text>
-        <TouchableOpacity 
-            onPress={() => setNotesModalVisible(true)}
-            style={{ marginLeft: 'auto' }}
-        >
-            <FontAwesome5 name="plus" size={12} color={C.white} />
-            <Text style={s.viewAllNotes}> Add Note</Text>
-        </TouchableOpacity>
-    </View>
+                {/* Recent Transactions - ADDED BACK */}
+                <View style={s.mobileCard}>
+                    <View style={s.mobileCardHeader}>
+                        <Ionicons name="time-outline" size={18} color={C.dark} />
+                        <Text style={s.mobileCardTitle}>Recent Transactions</Text>
+                    </View>
+                    {recentTransactions.length === 0 ? (
+                        <View style={s.empty}>
+                            <Text style={s.emptyText}>No transactions yet.</Text>
+                        </View>
+                    ) : (
+                        recentTransactions.map(t => (
+                            <View key={t.transaction_id} style={s.transactionRow}>
+                                <Text style={s.transactionId}>#{t.short_id}</Text>
+                                <Text style={s.transactionDate}>{new Date(t.date).toLocaleDateString()}</Text>
+                                <Text style={s.transactionTotal}>₱{parseFloat(t.total).toFixed(2)}</Text>
+                            </View>
+                        ))
+                    )}
+                </View>
 
-               
-                    
+                {/* Recent Inventory Notes */}
+                <View style={s.mobileCard}>
+                    <View style={s.mobileCardHeader}>
+                        <FontAwesome5 name="sticky-note" size={16} color={C.primary} />
+                        <Text style={s.mobileCardTitle}>Recent Inventory Notes</Text>
+                        <TouchableOpacity 
+                            onPress={() => setNotesModalVisible(true)}
+                            style={{ marginLeft: 'auto' }}
+                        >
+                            <FontAwesome5 name="plus" size={12} color={C.white} />
+                            <Text style={s.viewAllNotes}> Add Note</Text>
+                        </TouchableOpacity>
+                    </View>
+
                     {offlineNotes.length === 0 ? (
                         <TouchableOpacity 
                             style={s.emptyNotes}
@@ -592,25 +638,22 @@ function AdminDashboard({ navigation, route }) {
                 </View>
             </Modal>
 
-
             {/* Offline Inventory Notes Modal */}
-<Modal visible={notesModalVisible} transparent animationType="slide" onRequestClose={() => setNotesModalVisible(false)}>
-    <TouchableWithoutFeedback onPress={() => setNotesModalVisible(false)}>
-        <View style={s.backdrop} />
-    </TouchableWithoutFeedback>
-    <View style={s.notesModalContainer}>
-        <View style={s.notesModalSheet}>
-            <View style={s.notesModalHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <FontAwesome5 name="sticky-note" size={20} color={C.primary} />
-                    <Text style={s.notesModalTitle}>Inventory Note</Text>
-                </View>
-                <TouchableOpacity onPress={() => setNotesModalVisible(false)}>
-                    <Ionicons name="close" size={24} color={C.dark} />
-                </TouchableOpacity>
-            </View>
-
-           
+            <Modal visible={notesModalVisible} transparent animationType="slide" onRequestClose={() => setNotesModalVisible(false)}>
+                <TouchableWithoutFeedback onPress={() => setNotesModalVisible(false)}>
+                    <View style={s.backdrop} />
+                </TouchableWithoutFeedback>
+                <View style={s.notesModalContainer}>
+                    <View style={s.notesModalSheet}>
+                        <View style={s.notesModalHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <FontAwesome5 name="sticky-note" size={20} color={C.primary} />
+                                <Text style={s.notesModalTitle}>Inventory Note</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setNotesModalVisible(false)}>
+                                <Ionicons name="close" size={24} color={C.dark} />
+                            </TouchableOpacity>
+                        </View>
 
                         <ScrollView style={s.notesModalBody}>
                             <Text style={s.notesLabel}>Title *</Text>
@@ -644,13 +687,12 @@ function AdminDashboard({ navigation, route }) {
                             />
 
                             <View style={s.offlineInfo}>
-    <FontAwesome5 name="wifi" size={14} color={C.warning} />
-    <Text style={s.offlineInfoText}>
-        This note will be saved locally and synced when internet is available.
-    </Text>
-</View>
+                                <FontAwesome5 name="wifi" size={14} color={C.warning} />
+                                <Text style={s.offlineInfoText}>
+                                    This note will be saved locally and synced when internet is available.
+                                </Text>
+                            </View>
 
-                            
                             <View style={s.notesModalActions}>
                                 <TouchableOpacity 
                                     style={s.notesCancelBtn}
@@ -744,18 +786,24 @@ const s = StyleSheet.create({
     restockBtnText:{color:C.white,fontSize:11,fontWeight:'700'},
     viewAll:      {textAlign:'center',color:C.primary,marginTop:12,fontSize:13,fontWeight:'500'},
 
+    // Transaction Row Styles
+    transactionRow: {flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:12,borderBottomWidth:1,borderBottomColor:C.light},
+    transactionId:  {fontSize:13,fontWeight:'700',color:C.dark,flex:1},
+    transactionDate: {fontSize:12,color:C.gray,flex:1.5},
+    transactionTotal: {fontSize:13,fontWeight:'700',color:C.primary,flex:1,textAlign:'right'},
+
     // Notes Styles
     viewAllNotes: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: C.white,
-    backgroundColor: C.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    overflow: 'hidden',
-    textAlign: 'center',
-},
+        fontSize: 12,
+        fontWeight: '600',
+        color: C.white,
+        backgroundColor: C.primary,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 6,
+        overflow: 'hidden',
+        textAlign: 'center',
+    },
     emptyNotes:   {alignItems:'center',justifyContent:'center',paddingVertical:30,backgroundColor:C.bg,borderRadius:12,gap:8},
     emptyNotesText:{fontSize:14,fontWeight:'600',color:C.text},
     emptyNotesSubtext:{fontSize:11,color:C.gray},

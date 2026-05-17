@@ -29,7 +29,7 @@ const C = {
     gray:         '#95a5a6',
     light:        '#e9ecef',
     white:        '#ffffff',
-    danger:       '#233b2d',
+    danger:       '#e74c3c',
     warning:      '#beb09a',
     success:      '#233b2d',
     bg:           '#f0f2f5',
