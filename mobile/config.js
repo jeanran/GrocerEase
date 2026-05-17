@@ -1,4 +1,6 @@
 
-const API_URL = 'http://192.168.1.78:8000';
+const API_URL = 'https://grocerease-5xrs.onrender.com';  
 
 export default API_URL;
+
+
