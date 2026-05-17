@@ -797,8 +797,20 @@ def api_mobile_products(request):
     products = Product.objects.all().values(
         'product_id', 'name', 'category', 'price', 'stock', 'unit', 'reorder_level'
     )
-    return JsonResponse({'success': True, 'products': list(products)})
-
+    
+    products_list = []
+    for p in products:
+        products_list.append({
+            'product_id': p['product_id'],
+            'name': p['name'],
+            'category': p['category'],
+            'price': float(p['price']) if p['price'] else 0.00,
+            'stock': p['stock'],
+            'unit': p['unit'] or 'pieces',
+            'reorder_level': p['reorder_level'] or 10,
+        })
+    
+    return JsonResponse({'success': True, 'products': products_list})
 
 @csrf_exempt
 def api_mobile_product_detail(request, product_id):
@@ -815,13 +827,12 @@ def api_mobile_product_detail(request, product_id):
         'product_id':   str(product.product_id),
         'name':         product.name,
         'category':     product.category,
-        'price':        str(product.price),
+        'price':        float(product.price) if product.price else 0.00,  # ← FIX THIS
         'stock':        product.stock,
-        'unit':         product.unit,
-        'reorder_level': product.reorder_level,
+        'unit':         product.unit or 'pieces',
+        'reorder_level': product.reorder_level or 10,
     }
     return JsonResponse({'success': True, 'product': data})
-
 
 @csrf_exempt
 def api_mobile_products_add(request):
@@ -949,7 +960,10 @@ def api_mobile_daily_summary(request):
     """Mobile: daily sales summary (admin only)."""
     today              = date.today()
     total_sales        = Transaction.objects.filter(date__date=today).aggregate(total=Sum('total'))['total'] or 0
-    total_transactions = Transaction.objects.filter(date__date=today).count()
+    
+    
+    total_transactions = Transaction.objects.count()
+    
     low_stock          = Product.objects.filter(stock__lte=F('reorder_level')).count()
 
     return JsonResponse({
@@ -1271,3 +1285,38 @@ def api_mobile_checkout(request):
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
+
+
+@csrf_exempt
+def api_mobile_charts(request):
+    """Mobile: charts data — no session required, works without JWT."""
+    today          = date.today()
+    selected_month = int(request.GET.get('month', today.month))
+    selected_year  = today.year
+ 
+    # Weekly: last 7 days
+    weekly = []
+    for i in range(6, -1, -1):
+        day   = today - timedelta(days=i)
+        total = Transaction.objects.filter(
+            date__date=day
+        ).aggregate(total=Sum('total'))['total'] or 0
+        weekly.append({'label': day.strftime('%a'), 'total': float(total)})
+ 
+    # Monthly: ALL days in the selected month (including zeros)
+    days_in_month = calendar.monthrange(selected_year, selected_month)[1]
+    monthly = []
+    for d in range(1, days_in_month + 1):
+        total = Transaction.objects.filter(
+            date__year=selected_year,
+            date__month=selected_month,
+            date__day=d,
+        ).aggregate(total=Sum('total'))['total'] or 0
+        monthly.append({'day': d, 'total': float(total)})
+ 
+    return JsonResponse({
+        'success':       True,
+        'weekly':        weekly,
+        'monthly':       monthly,
+        'current_month': today.month - 1,   # 0-based for JS
+    })

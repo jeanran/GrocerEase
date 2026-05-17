@@ -94,5 +94,6 @@ urlpatterns = [
     path('api/mobile/users/add/',     views.api_mobile_users_add,    name='api_mobile_users_add'),
     path('api/mobile/users/<str:user_id>/edit/',   views.api_mobile_users_edit,   name='api_mobile_users_edit'),
     path('api/mobile/users/<str:user_id>/delete/', views.api_mobile_users_delete, name='api_mobile_users_delete'),
+    path('api/mobile/charts/', views.api_mobile_charts, name='api_mobile_charts'),
 ]
 

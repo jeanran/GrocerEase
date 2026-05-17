@@ -61,9 +61,9 @@ export const globalStyles = StyleSheet.create({
     },
 
     // Text
-    heading:  { fontSize: 22, fontWeight: '700', color: colors.dark },
-    subtext:  { fontSize: 14, color: colors.muted },
-    label:    { fontSize: 13, fontWeight: '600', color: colors.dark, marginBottom: 7 },
+    heading:  { fontSize: 40, fontWeight: '700', color: colors.dark },
+    subtext:  { fontSize: 30, color: colors.muted },
+    label:    { fontSize: 30, fontWeight: '600', color: colors.dark, marginBottom: 7 },
 
     // Logo
     logoWrap: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
@@ -73,6 +73,6 @@ export const globalStyles = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center',
         marginRight: 10,
     },
-    logoText:   { fontSize: 24, fontWeight: '700', color: colors.dark },
+    logoText:   { fontSize: 40, fontWeight: '700', color: colors.dark },
     logoAccent: { color: colors.secondary },
 });

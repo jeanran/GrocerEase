@@ -12,6 +12,7 @@ import StockInHistoryScreen from './screens/StockInHistoryScreen';
 import StockOutScreen from './screens/StockOutScreen';
 import InventoryScreen from './screens/InventoryScreen';
 import UsersManagementScreen from './screens/UsersManagementScreen';
+import StocksScreen from './screens/StocksScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -29,6 +30,7 @@ export default function App() {
                 <Stack.Screen name="StockInHistory" component={StockInHistoryScreen} />
                 <Stack.Screen name="StockOut" component={StockOutScreen} />
                 <Stack.Screen name="Inventory" component={InventoryScreen} />
+                <Stack.Screen name="Stocks" component={StocksScreen}/>
                 <Stack.Screen name="Users" component={UsersManagementScreen} />
             </Stack.Navigator>
         </NavigationContainer>

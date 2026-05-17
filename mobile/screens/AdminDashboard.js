@@ -1,4 +1,3 @@
-// AdminDashboard.js - Consistent with web theme
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, TouchableOpacity, TextInput, StyleSheet,
@@ -7,177 +6,187 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { LineChart, BarChart } from 'react-native-chart-kit';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import API_URL from '../config';
 import { fetchJson } from '../utils/api';
 
-const COLORS = {
-    primary:      '#1e6f5c',
-    primaryLight: '#e8f5f1',
-    accent:       '#29c98f',
-    danger:       '#e17055',
-    warning:      '#f39c12',
-    success:      '#27ae60',
-    bg:           '#f0f2f5',
-    white:        '#ffffff',
-    border:       '#e2e8f0',
-    text:         '#2d3436',
-    textMuted:    '#718096',
-    sidebar:      '#1e2d3d',
-    cardShadow:   '#000',
+const C = {
+    primary:  '#1e6f5c',
+    secondary:'#0e5545',
+    dark:     '#2c3e50',
+    gray:     '#95a5a6',
+    light:    '#e9ecef',
+    white:    '#ffffff',
+    danger:   '#e74c3c',
+    warning:  '#f39c12',
+    success:  '#27ae60',
+    bg:       '#f0f2f5',
 };
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const DRAWER_W = Math.min(SCREEN_W * 0.72, 280);
+const CHART_W  = SCREEN_W - 48;
 
-export default function AdminDashboard({ navigation, route }) {
+const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function AdminDashboard({ navigation, route }) {
     const { user } = route.params || {};
 
     const [loading,             setLoading]             = useState(true);
     const [refreshing,          setRefreshing]          = useState(false);
-    const [stats,               setStats]               = useState({
-        total_products: 0, low_stock: 0, stock_out: 0, total_transactions: 0, today_sales: 0,
-    });
+    const [stats,               setStats]               = useState({ total_products:0, low_stock:0, total_transactions:0, today_sales:0 });
+    const [weeklyData,          setWeeklyData]          = useState([]);
+    const [monthlyData,         setMonthlyData]         = useState([]);
+    const [selectedMonth,       setSelectedMonth]       = useState(new Date().getMonth());
+    const [currentMonth,        setCurrentMonth]        = useState(new Date().getMonth());
     const [products,            setProducts]            = useState([]);
     const [lowStockProducts,    setLowStockProducts]    = useState([]);
     const [stockOutProducts,    setStockOutProducts]    = useState([]);
-    const [recentTransactions,  setRecentTransactions]  = useState([]);
-    const [searchQuery,         setSearchQuery]         = useState('');
     const [selectedProduct,     setSelectedProduct]     = useState(null);
     const [productModalVisible, setProductModalVisible] = useState(false);
     const [adjustmentType,      setAdjustmentType]      = useState('in');
     const [adjustmentQty,       setAdjustmentQty]       = useState('');
     const [processingUpdate,    setProcessingUpdate]    = useState(false);
     const [drawerOpen,          setDrawerOpen]          = useState(false);
+    
+    // Offline Notes States
+    const [notesModalVisible, setNotesModalVisible] = useState(false);
+    const [offlineNotes, setOfflineNotes] = useState([]);
+    const [noteForm, setNoteForm] = useState({
+        title: '',
+        content: '',
+        product_name: '',
+    });
+    const [savingNote, setSavingNote] = useState(false);
 
     const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
-    const openDrawer = () => {
-        setDrawerOpen(true);
-        Animated.timing(drawerX, { toValue: 0, duration: 260, useNativeDriver: true }).start();
-    };
+    const openDrawer  = () => { setDrawerOpen(true);  Animated.timing(drawerX,{toValue:0, duration:260, useNativeDriver:true}).start(); };
+    const closeDrawer = () => { Animated.timing(drawerX,{toValue:-DRAWER_W, duration:220, useNativeDriver:true}).start(()=>setDrawerOpen(false)); };
 
-    const closeDrawer = () => {
-        Animated.timing(drawerX, { toValue: -DRAWER_W, duration: 220, useNativeDriver: true })
-            .start(() => setDrawerOpen(false));
-    };
-
-    const parseJsonResponse = async (response) => {
-        const text = await response.text();
-        if (!response.ok) {
-            throw new Error(`${response.status} ${response.statusText}: ${text}`);
-        }
-
+    // ── Offline Notes Functions ──────────────────────────────────────
+    const loadOfflineNotes = async () => {
         try {
-            return JSON.parse(text);
-        } catch (parseError) {
-            throw new Error(`Invalid JSON response: ${text.slice(0, 240)}`);
+            const savedNotes = await AsyncStorage.getItem('@inventory_notes');
+            if (savedNotes) {
+                const notes = JSON.parse(savedNotes);
+                const pendingNotes = notes.filter(n => n.status === 'pending').slice(0, 3);
+                setOfflineNotes(pendingNotes);
+            }
+        } catch (error) {
+            console.error('Failed to load notes:', error);
         }
     };
 
-    const loadDashboardData = useCallback(async () => {
-        try {
-            const [summaryData, productsData, lowStockData] = await Promise.all([
-                fetchJson(`${API_URL}/api/mobile/daily-summary/`),
-                fetchJson(`${API_URL}/api/mobile/products/`),
-                fetchJson(`${API_URL}/api/mobile/low-stock/`),
-            ]);
-
-            let transactionsData = { success: false, transactions: [] };
-            try {
-                transactionsData = await fetchJson(`${API_URL}/api/mobile/transactions/`);
-            } catch (transactionsError) {
-                console.warn('Transactions endpoint unavailable:', transactionsError.message);
-            }
-
-            if (productsData.success) {
-                const allProducts = productsData.products || [];
-                setProducts(allProducts);
-                setStats(prev => ({
-                    ...prev,
-                    total_products: allProducts.length,
-                    stock_out: allProducts.filter(p => p.stock <= 0).length,
-                }));
-                setStockOutProducts(allProducts.filter(p => p.stock <= 0));
-            }
-
-            if (summaryData.success) {
-                setStats(prev => ({
-                    ...prev,
-                    low_stock: summaryData.low_stock_alerts,
-                    total_transactions: summaryData.total_transactions,
-                    today_sales: summaryData.total_sales,
-                }));
-            }
-
-            if (lowStockData.success) {
-                setLowStockProducts(lowStockData.products || []);
-            }
-
-            if (transactionsData.success) {
-                setRecentTransactions(transactionsData.transactions.slice(0, 5));
-            }
-        } catch (err) {
-            Alert.alert('Error', 'Failed to load dashboard data: ' + err.message);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
-
-    const openProductModal = (product) => {
-        setSelectedProduct(product);
-        setAdjustmentType('in');
-        setAdjustmentQty('');
-        setProductModalVisible(true);
-    };
-
-    const closeProductModal = () => {
-        setProductModalVisible(false);
-        setSelectedProduct(null);
-        setAdjustmentQty('');
-        setProcessingUpdate(false);
-    };
-
-    const handleStockAdjustment = async () => {
-        if (!selectedProduct) return;
-        const quantity = parseInt(adjustmentQty, 10);
-        if (!quantity || quantity <= 0) {
-            Alert.alert('Validation', 'Enter a valid quantity.');
+    const saveOfflineNote = async () => {
+        if (!noteForm.title || !noteForm.content) {
+            Alert.alert('Validation', 'Please enter title and content');
             return;
         }
 
-        const endpoint = adjustmentType === 'in'
-            ? `${API_URL}/api/mobile/stock-in/add/`
-            : `${API_URL}/api/mobile/stock-out/add/`;
-
-        setProcessingUpdate(true);
+        setSavingNote(true);
         try {
-            const data = await fetchJson(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: user?.user_id,
-                    product_id: selectedProduct.product_id,
-                    quantity,
-                    unit: selectedProduct.unit || 'pieces',
-                    reason: adjustmentType === 'out' ? 'adjustment' : undefined,
-                }),
-            });
-
-            if (data.success) {
-                Alert.alert('Success', data.message || 'Stock updated successfully.');
-                closeProductModal();
-                setRefreshing(true);
-                loadDashboardData();
-            } else {
-                Alert.alert('Error', data.message || 'Unable to update stock.');
-            }
-        } catch (err) {
-            Alert.alert('Error', err.message);
+            const savedNotes = await AsyncStorage.getItem('@inventory_notes');
+            let allNotes = savedNotes ? JSON.parse(savedNotes) : [];
+            
+            const newNote = {
+                id: Date.now().toString(),
+                ...noteForm,
+                timestamp: new Date().toISOString(),
+                status: 'pending'
+            };
+            
+            allNotes = [newNote, ...allNotes];
+            await AsyncStorage.setItem('@inventory_notes', JSON.stringify(allNotes));
+            
+            const pendingNotes = allNotes.filter(n => n.status === 'pending').slice(0, 3);
+            setOfflineNotes(pendingNotes);
+            
+            Alert.alert('Success', 'Note saved offline! Will sync when online.');
+            setNoteForm({ title: '', content: '', product_name: '' });
+            setNotesModalVisible(false);
+        } catch (error) {
+            Alert.alert('Error', 'Failed to save note');
         } finally {
-            setProcessingUpdate(false);
+            setSavingNote(false);
         }
     };
+
+    const deleteOfflineNote = async (noteId) => {
+        Alert.alert('Delete Note', 'Remove this inventory note?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        const savedNotes = await AsyncStorage.getItem('@inventory_notes');
+                        let allNotes = savedNotes ? JSON.parse(savedNotes) : [];
+                        allNotes = allNotes.filter(n => n.id !== noteId);
+                        await AsyncStorage.setItem('@inventory_notes', JSON.stringify(allNotes));
+                        
+                        const pendingNotes = allNotes.filter(n => n.status === 'pending').slice(0, 3);
+                        setOfflineNotes(pendingNotes);
+                        Alert.alert('Success', 'Note deleted');
+                    } catch (error) {
+                        Alert.alert('Error', 'Failed to delete note');
+                    }
+                }
+            }
+        ]);
+    };
+
+    // ── load all dashboard data ──────────────────────────────────────
+    const loadDashboardData = useCallback(async () => {
+        try {
+            const [summaryData, productsData, lowStockData, chartsData] = await Promise.all([
+                fetchJson(`${API_URL}/api/mobile/daily-summary/`),
+                fetchJson(`${API_URL}/api/mobile/products/`),
+                fetchJson(`${API_URL}/api/mobile/low-stock/`),
+                fetchJson(`${API_URL}/api/mobile/charts/`),
+            ]);
+
+            if (productsData.success) {
+                const all = productsData.products || [];
+                setProducts(all);
+                setStockOutProducts(all.filter(p => p.stock <= 0));
+                setStats(prev => ({ ...prev, total_products: all.length }));
+            }
+            if (summaryData.success) {
+                setStats(prev => ({
+                    ...prev,
+                    low_stock:          summaryData.low_stock_alerts,
+                    total_transactions: summaryData.total_transactions,
+                    today_sales:        summaryData.total_sales,
+                }));
+            }
+            if (lowStockData.success) setLowStockProducts(lowStockData.products || []);
+
+            if (chartsData.success) {
+                setWeeklyData(chartsData.weekly || []);
+                setMonthlyData(chartsData.monthly || []);
+                const cm = chartsData.current_month ?? new Date().getMonth();
+                setCurrentMonth(cm);
+                setSelectedMonth(prev => prev ?? cm);
+            }
+        } catch (err) {
+            Alert.alert('Error', 'Failed to load dashboard: ' + err.message);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+            await loadOfflineNotes();
+        }
+    }, []);
+
+    const loadMonthlyChart = useCallback(async (monthIdx) => {
+        try {
+            const res = await fetchJson(`${API_URL}/api/mobile/charts/?month=${monthIdx + 1}`);
+            if (res.success) setMonthlyData(res.monthly || []);
+        } catch (err) {
+            console.warn('Monthly chart error:', err.message);
+        }
+    }, []);
 
     useEffect(() => {
         loadDashboardData();
@@ -185,647 +194,622 @@ export default function AdminDashboard({ navigation, route }) {
         return () => clearInterval(interval);
     }, [loadDashboardData]);
 
-    const onRefresh = () => {
-        setRefreshing(true);
-        loadDashboardData();
+    useEffect(() => {
+        loadMonthlyChart(selectedMonth);
+    }, [selectedMonth, loadMonthlyChart]);
+
+    useEffect(() => {
+        loadOfflineNotes();
+    }, []);
+
+    const onRefresh = () => { setRefreshing(true); loadDashboardData(); };
+
+    const openProductModal = (product) => {
+        setSelectedProduct(product); setAdjustmentType('in');
+        setAdjustmentQty(''); setProductModalVisible(true);
+    };
+    const closeProductModal = () => {
+        setProductModalVisible(false); setSelectedProduct(null);
+        setAdjustmentQty(''); setProcessingUpdate(false);
     };
 
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.category || '').toLowerCase().includes(searchQuery.toLowerCase())
+    const handleStockAdjustment = async () => {
+        const quantity = parseInt(adjustmentQty, 10);
+        if (!quantity || quantity <= 0) { Alert.alert('Validation','Enter a valid quantity.'); return; }
+        const endpoint = adjustmentType === 'in'
+            ? `${API_URL}/api/mobile/stock-in/add/`
+            : `${API_URL}/api/mobile/stock-out/add/`;
+        setProcessingUpdate(true);
+        try {
+            const data = await fetchJson(endpoint, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    user_id:    user?.user_id,
+                    product_id: selectedProduct.product_id,
+                    quantity,
+                    unit:       selectedProduct.unit || 'pieces',
+                    reason:     adjustmentType === 'out' ? 'adjustment' : undefined,
+                }),
+            });
+            if (data.success) { Alert.alert('Success', data.message||'Stock updated.'); closeProductModal(); loadDashboardData(); }
+            else Alert.alert('Error', data.message||'Unable to update stock.');
+        } catch (err) { Alert.alert('Error', err.message); }
+        finally { setProcessingUpdate(false); }
+    };
+
+    const handleRestock = (product) => {
+        closeDrawer();
+        navigation.navigate('StockIn', { user, productToRestock: { product_id:product.product_id, name:product.name, unit:product.unit||'pieces' } });
+    };
+
+    const handleLogout = () => { closeDrawer(); navigation.replace('Login'); };
+
+    const getStatus = (p) => {
+        if (p.stock <= 0)                       return { label:'Out of Stock', style:s.badgeOut };
+        if (p.stock <= (p.reorder_level || 10)) return { label:'Low Stock',    style:s.badgeLow };
+        return                                         { label:'In Stock',     style:s.badgeIn  };
+    };
+
+    const chartConfig = {
+        backgroundGradientFrom: C.white, backgroundGradientTo: C.white,
+        color: (opacity=1) => `rgba(30,111,92,${opacity})`,
+        strokeWidth:2, barPercentage:0.6, decimalPlaces:0,
+        propsForDots:{ r:'4', strokeWidth:'2', stroke:C.primary },
+        formatYLabel: v => `₱${parseFloat(v).toLocaleString()}`,
+        propsForBackgroundLines:{ strokeDasharray:'', stroke:'#f0f2f5' },
+    };
+
+    const weeklyLabels = weeklyData.map(d => d.label);
+    const weeklyTotals = weeklyData.map(d => Number(d.total) || 0);
+    const hasWeekly    = weeklyTotals.some(v => v > 0);
+
+    const allMonthlyTotals  = monthlyData.map(d => Number(d.total) || 0);
+    const allMonthlyLabels  = monthlyData.map((d,i) => (i % 4 === 0 ? String(d.day) : ''));
+    const hasMonthly        = allMonthlyTotals.some(v => v > 0);
+
+    if (loading) return (
+        <SafeAreaView style={s.loadingScreen}>
+            <ActivityIndicator size="large" color={C.primary} />
+            <Text style={s.loadingText}>Loading Dashboard...</Text>
+        </SafeAreaView>
     );
 
-    const handleLogout = () => {
-        closeDrawer();
-        navigation.replace('Login');
-    };
-
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.loadingScreen}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.loadingText}>Loading Dashboard...</Text>
-            </SafeAreaView>
-        );
-    }
-
     return (
-        <SafeAreaView style={styles.root}>
-            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+        <SafeAreaView style={s.root}>
+            <StatusBar barStyle="light-content" backgroundColor={C.primary} />
 
-            {/* Drawer Sidebar */}
+            {/* DRAWER */}
             {drawerOpen && (
                 <Modal transparent animationType="none" onRequestClose={closeDrawer}>
                     <TouchableWithoutFeedback onPress={closeDrawer}>
-                        <View style={styles.backdrop} />
+                        <View style={s.backdrop} />
                     </TouchableWithoutFeedback>
-                    <Animated.View style={[styles.drawer, { transform: [{ translateX: drawerX }] }]}>
-
-                        <View style={styles.drawerLogo}>
-                            <View style={styles.logoIcon}>
-                                <FontAwesome5 name="store" size={18} color={COLORS.white} />
-                            </View>
-                            <Text style={styles.logoText}>
-                                Grocer<Text style={{ color: COLORS.accent }}>Ease</Text>
-                            </Text>
+                    <Animated.View style={[s.drawer,{transform:[{translateX:drawerX}]}]}>
+                        <View style={s.drawerLogo}>
+                            <View style={s.drawerLogoIcon}><FontAwesome5 name="store" size={18} color={C.white}/></View>
+                            <Text style={s.drawerLogoText}>Grocer<Text style={{color:C.warning}}>Ease</Text></Text>
                         </View>
-
-                        <TouchableOpacity style={styles.navItem} onPress={() => {
-                            closeDrawer();
-                        }}>
-                            <FontAwesome5 name="tachometer-alt" size={18} color={COLORS.white} />
-                            <Text style={styles.navItemText}>Dashboard</Text>
+                        {[
+                            {icon:'tachometer-alt', label:'Dashboard', onPress:closeDrawer},
+                            {icon:'boxes', label:'Stocks', onPress:()=>{closeDrawer();navigation.navigate('Stocks',{user});}}, 
+                            {icon:'boxes', label:'Inventory', onPress:()=>{closeDrawer();navigation.navigate('Inventory',{user});}},
+                            {icon:'arrow-circle-down', label:'Stock In', onPress:()=>{closeDrawer();navigation.navigate('StockIn',{user});}},
+                            {icon:'arrow-circle-up', label:'Stock Out', onPress:()=>{closeDrawer();navigation.navigate('StockOut',{user});}},
+                            {icon:'history', label:'Stock In History', onPress:()=>{closeDrawer();navigation.navigate('StockInHistory',{user});}},
+                            {icon:'users', label:'Manage Users', onPress:()=>{closeDrawer();navigation.navigate('Users',{user});}},
+                        ].map((item,idx)=>(
+                            <TouchableOpacity key={idx} style={s.navItem} onPress={item.onPress}>
+                                <FontAwesome5 name={item.icon} size={16} color={C.white}/>
+                                <Text style={s.navItemText}>{item.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        <TouchableOpacity style={s.drawerLogout} onPress={handleLogout}>
+                            <Ionicons name="log-out-outline" size={20} color={C.danger}/>
+                            <Text style={s.drawerLogoutText}>Logout</Text>
                         </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.navItem} onPress={() => {
-                            closeDrawer();
-                            navigation.navigate('Inventory', { user });
-                        }}>
-                            <FontAwesome5 name="boxes" size={18} color={COLORS.white} />
-                            <Text style={styles.navItemText}>Inventory</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.navItem} onPress={() => {
-                            closeDrawer();
-                            navigation.navigate('StockIn', { user });
-                        }}>
-                            <FontAwesome5 name="arrow-circle-down" size={18} color={COLORS.white} />
-                            <Text style={styles.navItemText}>Stock In</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.navItem} onPress={() => {
-                            closeDrawer();
-                            navigation.navigate('StockOut', { user });
-                        }}>
-                            <FontAwesome5 name="arrow-circle-up" size={18} color={COLORS.white} />
-                            <Text style={styles.navItemText}>Stock Out</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.navItem} onPress={() => {
-                            closeDrawer();
-                            navigation.navigate('StockInHistory', { user });
-                        }}>
-                            <FontAwesome5 name="history" size={18} color={COLORS.white} />
-                            <Text style={styles.navItemText}>Stock In History</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.navItem} onPress={() => {
-                            closeDrawer();
-                            navigation.navigate('Users', { user });
-                        }}>
-                            <FontAwesome5 name="users" size={18} color={COLORS.white} />
-                            <Text style={styles.navItemText}>Manage Users</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.drawerLogout} onPress={handleLogout}>
-                            <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
-                            <Text style={styles.drawerLogoutText}>Logout</Text>
-                        </TouchableOpacity>
-
                     </Animated.View>
                 </Modal>
             )}
 
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={openDrawer}>
-                    <MaterialIcons name="menu" size={26} color={COLORS.text} />
+            {/* NAVBAR with Notes Button */}
+            <View style={s.navbar}>
+                <TouchableOpacity onPress={openDrawer} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+                    <MaterialIcons name="menu" size={26} color={C.white}/>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Dashboard</Text>
-                <View style={styles.userBadge}>
-                    <FontAwesome5 name="user-circle" size={24} color={COLORS.primary} />
+                <View style={s.navCenter}>
+                    <FontAwesome5 name="store" size={14} color={C.white} style={{marginRight:6}}/>
+                    <Text style={s.navTitle}>GrocerEase</Text>
+                </View>
+                <View style={s.navRight}>
+                    <TouchableOpacity onPress={() => setNotesModalVisible(true)} style={s.noteNavBtn}>
+                        <FontAwesome5 name="sticky-note" size={16} color={C.white} />
+                        {offlineNotes.length > 0 && (
+                            <View style={s.noteBadge}>
+                                <Text style={s.noteBadgeText}>{offlineNotes.length}</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                    <View style={s.navUser}>
+                        <FontAwesome5 name="user-circle" size={16} color={C.white}/>
+                        <Text style={s.navUsername}>{user?.username||'Admin'}</Text>
+                    </View>
                 </View>
             </View>
 
-            <Modal
-                visible={productModalVisible}
-                transparent
-                animationType="slide"
-                onRequestClose={closeProductModal}
-            >
-                <TouchableWithoutFeedback onPress={closeProductModal}>
-                    <View style={styles.backdrop} />
-                </TouchableWithoutFeedback>
-                <View style={styles.productModalContainer}>
-                    <View style={styles.productModalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Product Details</Text>
-                            <TouchableOpacity onPress={closeProductModal}>
-                                <Ionicons name="close" size={24} color={COLORS.text} />
-                            </TouchableOpacity>
-                        </View>
+            <ScrollView showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.primary]} tintColor={C.primary}/>}>
 
-                        {selectedProduct ? (
-                            <ScrollView showsVerticalScrollIndicator={false}>
-                                <View style={styles.modalInfoRow}>
-                                    <Text style={styles.modalLabel}>Product</Text>
-                                    <Text style={styles.modalValue}>{selectedProduct.name}</Text>
+                <View style={s.pageTitle}>
+                    <FontAwesome5 name="tachometer-alt" size={18} color={C.dark} style={{marginRight:10}}/>
+                    <Text style={s.pageTitleText}>Dashboard Overview</Text>
+                </View>
+
+                {/* Stock Alert Banner */}
+                {(lowStockProducts.length > 0 || stockOutProducts.length > 0) && (
+                    <TouchableOpacity style={s.alertBanner} onPress={()=>navigation.navigate('Inventory',{user})} activeOpacity={0.9}>
+                        <View style={s.alertBannerIcon}><FontAwesome5 name="exclamation-triangle" size={18} color={C.white}/></View>
+                        <View style={{flex:1}}>
+                            <Text style={s.alertBannerTitle}>Stock Alert!</Text>
+                            <Text style={s.alertBannerMsg}>
+                                {lowStockProducts.length > 0 && `${lowStockProducts.length} low stock`}
+                                {lowStockProducts.length > 0 && stockOutProducts.length > 0 && ' · '}
+                                {stockOutProducts.length > 0 && `${stockOutProducts.length} out of stock`}
+                            </Text>
+                        </View>
+                        <FontAwesome5 name="chevron-right" size={14} color={C.white}/>
+                    </TouchableOpacity>
+                )}
+
+                {/* STATS */}
+                <View style={s.statsGrid}>
+                    {[
+                        {icon:'boxes', label:'TOTAL PRODUCTS', value:stats.total_products, color:C.primary},
+                        {icon:'chart-line', label:"TODAY'S SALES", value:`₱${parseFloat(stats.today_sales||0).toFixed(2)}`, color:C.primary, small:true},
+                        {icon:'exclamation-triangle', label:'LOW STOCK', value:stats.low_stock, color:stats.low_stock>0?C.warning:C.primary, iconBg:stats.low_stock>0?C.warning:C.primary},
+                        {icon:'cash-register', label:'TRANSACTIONS', value:stats.total_transactions, color:C.primary},
+                    ].map((item,i)=>(
+                        <View key={i} style={s.statCard}>
+                            <View style={[s.statIcon,{backgroundColor:item.iconBg||C.primary}]}>
+                                <FontAwesome5 name={item.icon} size={20} color={C.white}/>
+                            </View>
+                            <View style={s.statInfo}>
+                                <Text style={s.statLabel}>{item.label}</Text>
+                                <Text style={[s.statNumber,item.small&&{fontSize:18},{color:item.color}]}>{item.value}</Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+
+                {/* CHARTS */}
+                <View style={s.dashboardCharts}>
+                    <View style={s.chartCard}>
+                        <Text style={s.chartTitle}>Weekly Sales</Text>
+                        {hasWeekly ? (
+                            <LineChart
+                                data={{labels:weeklyLabels, datasets:[{data:weeklyTotals.map(v=>v||0.001)}]}}
+                                width={CHART_W} height={200}
+                                chartConfig={chartConfig} bezier style={s.chart}
+                                withInnerLines={true} withOuterLines={false}
+                            />
+                        ) : (
+                            <View style={s.chartEmpty}><FontAwesome5 name="chart-line" size={28} color={C.light}/><Text style={s.chartEmptyText}>No sales this week</Text></View>
+                        )}
+                    </View>
+
+                    <View style={s.chartCard}>
+                        <Text style={s.chartTitle}>Monthly Sales</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.monthScroll}>
+                            <View style={s.monthSelector}>
+                                {monthNames.map((m,idx)=>(
+                                    <TouchableOpacity key={idx}
+                                        style={[s.monthOption, selectedMonth===idx && s.monthOptionActive]}
+                                        onPress={()=>setSelectedMonth(idx)}>
+                                        <Text style={[s.monthOptionText, selectedMonth===idx && s.monthOptionTextActive]}>{m}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </ScrollView>
+                        {hasMonthly && allMonthlyTotals.length > 0 ? (
+                            <BarChart
+                                data={{labels: allMonthlyLabels, datasets:[{data: allMonthlyTotals.map(v=>v||0)}]}}
+                                width={CHART_W} height={200}
+                                chartConfig={chartConfig} style={s.chart}
+                                fromZero withInnerLines={true} withOuterLines={false}
+                                showValuesOnTopOfBars={false}
+                            />
+                        ) : (
+                            <View style={s.chartEmpty}>
+                                <FontAwesome5 name="chart-bar" size={28} color={C.light}/>
+                                <Text style={s.chartEmptyText}>No sales for {monthNames[selectedMonth]}</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* Low Stock */}
+                {lowStockProducts.length > 0 && (
+                    <View style={s.mobileCard}>
+                        <View style={s.mobileCardHeader}>
+                            <FontAwesome5 name="exclamation-triangle" size={16} color={C.warning}/>
+                            <Text style={[s.mobileCardTitle,{color:C.warning}]}>Low Stock Alerts</Text>
+                        </View>
+                        {lowStockProducts.slice(0,5).map(p=>(
+                            <View key={p.product_id} style={s.alertRow}>
+                                <View style={[s.alertDot,{backgroundColor:'#fff3cd'}]}><FontAwesome5 name="cube" size={12} color={C.warning}/></View>
+                                <View style={{flex:1}}>
+                                    <Text style={s.alertName}>{p.name}</Text>
+                                    <Text style={[s.alertStock,{color:C.warning}]}>Stock: {p.stock} {p.unit||''} · Reorder: {p.reorder_level||10}</Text>
                                 </View>
-                                <View style={styles.modalInfoRow}>
-                                    <Text style={styles.modalLabel}>Category</Text>
-                                    <Text style={styles.modalValue}>{selectedProduct.category || 'Uncategorized'}</Text>
+                                <TouchableOpacity style={s.restockBtn} onPress={()=>handleRestock(p)}>
+                                    <Text style={s.restockBtnText}>Restock</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                        {lowStockProducts.length > 5 && (
+                            <TouchableOpacity onPress={()=>navigation.navigate('Inventory',{user})}>
+                                <Text style={s.viewAll}>View all {lowStockProducts.length} items →</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
+
+                {/* Out of Stock */}
+                {stockOutProducts.length > 0 && (
+                    <View style={s.mobileCard}>
+                        <View style={s.mobileCardHeader}>
+                            <FontAwesome5 name="times-circle" size={16} color={C.danger}/>
+                            <Text style={[s.mobileCardTitle,{color:C.danger}]}>Out of Stock</Text>
+                        </View>
+                        {stockOutProducts.slice(0,5).map(p=>(
+                            <View key={p.product_id} style={s.alertRow}>
+                                <View style={[s.alertDot,{backgroundColor:'#f8d7da'}]}><FontAwesome5 name="times" size={12} color={C.danger}/></View>
+                                <View style={{flex:1}}>
+                                    <Text style={s.alertName}>{p.name}</Text>
+                                    <Text style={[s.alertStock,{color:C.danger}]}>Restock immediately!</Text>
                                 </View>
-                                <View style={styles.modalInfoRow}>
-                                    <Text style={styles.modalLabel}>Current Stock</Text>
-                                    <Text style={[styles.modalValue, selectedProduct.stock <= 0 && { color: COLORS.danger }]}> {selectedProduct.stock} {selectedProduct.unit || ''}</Text>
+                                <TouchableOpacity style={[s.restockBtn,{backgroundColor:C.danger}]} onPress={()=>handleRestock(p)}>
+                                    <Text style={[s.restockBtnText,{color:C.white}]}>Restock</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* Recent Inventory Notes - REPLACES Recent Transactions */}
+<View style={s.mobileCard}>
+    <View style={s.mobileCardHeader}>
+        <FontAwesome5 name="sticky-note" size={16} color={C.primary} />
+        <Text style={s.mobileCardTitle}>Recent Inventory Notes</Text>
+        <TouchableOpacity 
+            onPress={() => setNotesModalVisible(true)}
+            style={{ marginLeft: 'auto' }}
+        >
+            <FontAwesome5 name="plus" size={12} color={C.white} />
+            <Text style={s.viewAllNotes}> Add Note</Text>
+        </TouchableOpacity>
+    </View>
+
+               
+                    
+                    {offlineNotes.length === 0 ? (
+                        <TouchableOpacity 
+                            style={s.emptyNotes}
+                            onPress={() => setNotesModalVisible(true)}
+                        >
+                            <FontAwesome5 name="plus-circle" size={24} color={C.gray} />
+                            <Text style={s.emptyNotesText}>Add offline inventory note</Text>
+                            <Text style={s.emptyNotesSubtext}>Notes save locally, sync when online</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        offlineNotes.map(note => (
+                            <View key={note.id} style={s.noteItem}>
+                                <View style={s.noteIcon}>
+                                    <FontAwesome5 name="file-alt" size={14} color={C.primary} />
                                 </View>
-                                <View style={styles.modalInfoRow}>
-                                    <Text style={styles.modalLabel}>Reorder Level</Text>
-                                    <Text style={styles.modalValue}>{selectedProduct.reorder_level || 0}</Text>
-                                </View>
-                                <View style={styles.modalInfoRow}>
-                                    <Text style={styles.modalLabel}>Status</Text>
-                                    <Text style={[styles.statusBadge, selectedProduct.stock <= 0 ? styles.statusOut : selectedProduct.stock <= (selectedProduct.reorder_level || 10) ? styles.statusLow : styles.statusOk]}>
-                                        {selectedProduct.stock <= 0 ? 'Out of stock' : selectedProduct.stock <= (selectedProduct.reorder_level || 10) ? 'Low stock' : 'In stock'}
+                                <View style={s.noteContent}>
+                                    <Text style={s.noteTitle} numberOfLines={1}>{note.title}</Text>
+                                    <Text style={s.notePreview} numberOfLines={2}>{note.content}</Text>
+                                    {note.product_name ? (
+                                        <Text style={s.noteProduct}>Product: {note.product_name}</Text>
+                                    ) : null}
+                                    <Text style={s.noteTime}>
+                                        {new Date(note.timestamp).toLocaleString()}
                                     </Text>
                                 </View>
-
-                                <Text style={styles.sectionTitle}>Adjust Stock</Text>
-                                <View style={styles.adjustmentRow}>
-                                    <TouchableOpacity
-                                        style={[styles.adjustButton, adjustmentType === 'in' && styles.adjustButtonActive]}
-                                        onPress={() => setAdjustmentType('in')}
-                                    >
-                                        <Text style={[styles.adjustButtonText, adjustmentType === 'in' && styles.adjustButtonTextActive]}>Stock In</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[styles.adjustButton, adjustmentType === 'out' && styles.adjustButtonActive]}
-                                        onPress={() => setAdjustmentType('out')}
-                                    >
-                                        <Text style={[styles.adjustButtonText, adjustmentType === 'out' && styles.adjustButtonTextActive]}>Stock Out</Text>
-                                    </TouchableOpacity>
-                                </View>
-                                <TextInput
-                                    style={styles.adjustInput}
-                                    placeholder="Enter quantity"
-                                    placeholderTextColor={COLORS.textMuted}
-                                    keyboardType="numeric"
-                                    value={adjustmentQty}
-                                    onChangeText={setAdjustmentQty}
-                                />
-                                <TouchableOpacity
-                                    style={[styles.primaryButton, processingUpdate && { opacity: 0.7 }]}
-                                    onPress={handleStockAdjustment}
-                                    disabled={processingUpdate}
+                                <TouchableOpacity 
+                                    style={s.noteDeleteBtn}
+                                    onPress={() => deleteOfflineNote(note.id)}
                                 >
-                                    <Text style={styles.primaryButtonText}>{processingUpdate ? 'Updating...' : 'Apply Update'}</Text>
+                                    <FontAwesome5 name="trash" size={14} color={C.danger} />
+                                </TouchableOpacity>
+                            </View>
+                        ))
+                    )}
+                </View>
+
+                <Text style={s.footer}>© 2026 GrocerEase – Sales & Inventory System</Text>
+                <View style={{height:24}}/>
+            </ScrollView>
+
+            {/* Product Modal */}
+            <Modal visible={productModalVisible} transparent animationType="slide" onRequestClose={closeProductModal}>
+                <TouchableWithoutFeedback onPress={closeProductModal}><View style={s.backdrop}/></TouchableWithoutFeedback>
+                <View style={s.modalWrap}>
+                    <View style={s.modalSheet}>
+                        <View style={s.modalHead}>
+                            <Text style={s.modalTitle}>Product Details</Text>
+                            <TouchableOpacity onPress={closeProductModal}><Ionicons name="close" size={24} color={C.dark}/></TouchableOpacity>
+                        </View>
+                        {selectedProduct && (
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                {[
+                                    {label:'Product', value:selectedProduct.name},
+                                    {label:'Category', value:selectedProduct.category||'Uncategorized'},
+                                    {label:'Unit', value:selectedProduct.unit||'—'},
+                                    {label:'Reorder Level', value:String(selectedProduct.reorder_level||0)},
+                                ].map((row,i)=>(
+                                    <View key={i} style={s.modalRow}>
+                                        <Text style={s.modalLabel}>{row.label}</Text>
+                                        <Text style={s.modalValue}>{row.value}</Text>
+                                    </View>
+                                ))}
+                                <View style={s.modalRow}>
+                                    <Text style={s.modalLabel}>Current Stock</Text>
+                                    <Text style={[s.modalValue,selectedProduct.stock<=0&&{color:C.danger}]}>
+                                        {selectedProduct.stock} {selectedProduct.unit||''}
+                                    </Text>
+                                </View>
+                                <View style={s.modalRow}>
+                                    <Text style={s.modalLabel}>Status</Text>
+                                    <Text style={[s.badge,getStatus(selectedProduct).style]}>{getStatus(selectedProduct).label}</Text>
+                                </View>
+                                <View style={s.modalDivider}/>
+                                <Text style={s.adjustTitle}>Adjust Stock</Text>
+                                <View style={s.adjustRow}>
+                                    {['in','out'].map(type=>(
+                                        <TouchableOpacity key={type}
+                                            style={[s.adjustBtn,adjustmentType===type&&s.adjustBtnActive]}
+                                            onPress={()=>setAdjustmentType(type)}>
+                                            <FontAwesome5
+                                                name={type==='in'?'arrow-circle-down':'arrow-circle-up'}
+                                                size={14} color={adjustmentType===type?C.white:C.gray} style={{marginRight:8}}/>
+                                            <Text style={[s.adjustBtnText,adjustmentType===type&&s.adjustBtnTextActive]}>
+                                                Stock {type==='in'?'In':'Out'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <TextInput style={s.adjustInput} placeholder="Enter quantity"
+                                    placeholderTextColor={C.gray} keyboardType="numeric"
+                                    value={adjustmentQty} onChangeText={setAdjustmentQty}/>
+                                <TouchableOpacity style={[s.applyBtn,processingUpdate&&{opacity:0.7}]}
+                                    onPress={handleStockAdjustment} disabled={processingUpdate}>
+                                    <Text style={s.applyBtnText}>{processingUpdate?'Updating...':'Apply Update'}</Text>
                                 </TouchableOpacity>
                             </ScrollView>
-                        ) : null}
+                        )}
                     </View>
                 </View>
             </Modal>
 
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-            >
-                {/* Welcome */}
-                <View style={styles.welcomeRow}>
-                    <Text style={styles.welcomeText}>
-                        Welcome, <Text style={styles.welcomeName}>{user?.username || 'Admin'}</Text>
-                    </Text>
+
+            {/* Offline Inventory Notes Modal */}
+<Modal visible={notesModalVisible} transparent animationType="slide" onRequestClose={() => setNotesModalVisible(false)}>
+    <TouchableWithoutFeedback onPress={() => setNotesModalVisible(false)}>
+        <View style={s.backdrop} />
+    </TouchableWithoutFeedback>
+    <View style={s.notesModalContainer}>
+        <View style={s.notesModalSheet}>
+            <View style={s.notesModalHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <FontAwesome5 name="sticky-note" size={20} color={C.primary} />
+                    <Text style={s.notesModalTitle}>Inventory Note</Text>
                 </View>
+                <TouchableOpacity onPress={() => setNotesModalVisible(false)}>
+                    <Ionicons name="close" size={24} color={C.dark} />
+                </TouchableOpacity>
+            </View>
 
-                {/* Alerts banner */}
-                {(lowStockProducts.length > 0 || stockOutProducts.length > 0) && (
-                    <View style={styles.alertBanner}>
-                        <FontAwesome5 name="bell" size={14} color={COLORS.white} />
-                        <Text style={styles.alertBannerText}>
-                            {lowStockProducts.length} low-stock item{lowStockProducts.length === 1 ? '' : 's'} and {stockOutProducts.length} out-of-stock product{stockOutProducts.length === 1 ? '' : 's'} detected.
-                        </Text>
-                    </View>
-                )}
+           
 
-                {/* Stats Cards */}
-                <View style={styles.statsGrid}>
-                    <View style={styles.statCard}>
-                        <View style={styles.statIconBg}>
-                            <FontAwesome5 name="box" size={22} color={COLORS.primary} />
-                        </View>
-                        <Text style={styles.statNumber}>{stats.total_products}</Text>
-                        <Text style={styles.statLabel}>Total Products</Text>
-                    </View>
+                        <ScrollView style={s.notesModalBody}>
+                            <Text style={s.notesLabel}>Title *</Text>
+                            <TextInput
+                                style={s.notesInput}
+                                placeholder="e.g., Stock Count, Damaged Item, Low Stock"
+                                placeholderTextColor={C.gray}
+                                value={noteForm.title}
+                                onChangeText={(text) => setNoteForm({ ...noteForm, title: text })}
+                            />
 
-                    <View style={styles.statCard}>
-                        <View style={[styles.statIconBg, { backgroundColor: '#fff3e0' }]}>
-                            <FontAwesome5 name="exclamation-triangle" size={20} color={COLORS.warning} />
-                        </View>
-                        <Text style={[styles.statNumber, stats.low_stock > 0 && { color: COLORS.warning }]}>
-                            {stats.low_stock}
-                        </Text>
-                        <Text style={styles.statLabel}>Low Stock</Text>
-                    </View>
+                            <Text style={s.notesLabel}>Product Name (optional)</Text>
+                            <TextInput
+                                style={s.notesInput}
+                                placeholder="Which product is this about?"
+                                placeholderTextColor={C.gray}
+                                value={noteForm.product_name}
+                                onChangeText={(text) => setNoteForm({ ...noteForm, product_name: text })}
+                            />
 
-                    <View style={styles.statCard}>
-                        <View style={styles.statIconBg}>
-                            <FontAwesome5 name="times-circle" size={22} color={COLORS.danger} />
-                        </View>
-                        <Text style={[styles.statNumber, stats.stock_out > 0 && { color: COLORS.danger }]}>
-                            {stats.stock_out}
-                        </Text>
-                        <Text style={styles.statLabel}>Stock Out</Text>
-                    </View>
+                            <Text style={s.notesLabel}>Note Content *</Text>
+                            <TextInput
+                                style={[s.notesInput, s.notesTextArea]}
+                                placeholder="Write your inventory note here..."
+                                placeholderTextColor={C.gray}
+                                multiline
+                                numberOfLines={4}
+                                textAlignVertical="top"
+                                value={noteForm.content}
+                                onChangeText={(text) => setNoteForm({ ...noteForm, content: text })}
+                            />
 
-                    <View style={styles.statCard}>
-                        <View style={styles.statIconBg}>
-                            <FontAwesome5 name="money-bill-wave" size={20} color={COLORS.accent} />
-                        </View>
-                        <Text style={styles.statNumber}>
-                            ₱{parseFloat(stats.today_sales || 0).toFixed(2)}
-                        </Text>
-                        <Text style={styles.statLabel}>Today's Sales</Text>
-                    </View>
-                </View>
+                            <View style={s.offlineInfo}>
+    <FontAwesome5 name="wifi" size={14} color={C.warning} />
+    <Text style={s.offlineInfoText}>
+        This note will be saved locally and synced when internet is available.
+    </Text>
+</View>
 
-                {/* Inventory List */}
-                <View style={styles.inventorySection}>
-                    <View style={styles.sectionHeader}>
-                        <FontAwesome5 name="boxes" size={16} color={COLORS.text} />
-                        <Text style={styles.sectionTitle}>Inventory</Text>
-                    </View>
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search products or categories"
-                        placeholderTextColor={COLORS.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                    {filteredProducts.length === 0 ? (
-                        <View style={styles.emptyState}>
-                            <Text style={styles.emptyText}>No matching products found.</Text>
-                        </View>
-                    ) : (
-                        filteredProducts.slice(0, 12).map(product => (
-                            <TouchableOpacity key={product.product_id} style={styles.productRow} onPress={() => openProductModal(product)}>
-                                <View style={styles.productMeta}>
-                                    <Text style={styles.productName}>{product.name}</Text>
-                                    <Text style={styles.productCategory}>{product.category || 'General'}</Text>
-                                </View>
-                                <View style={styles.productDetailGroup}>
-                                    <Text style={styles.productStock}>{product.stock} {product.unit || ''}</Text>
-                                    <Text style={[styles.productStatus, product.stock <= 0 ? styles.statusOut : product.stock <= (product.reorder_level || 10) ? styles.statusLow : styles.statusOk]}>
-                                        {product.stock <= 0 ? 'Out' : product.stock <= (product.reorder_level || 10) ? 'Low' : 'OK'}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-                        ))
-                    )}
-                </View>
-
-                {/* Low Stock Alerts */}
-                {lowStockProducts.length > 0 && (
-                    <View style={styles.alertSection}>
-                        <View style={styles.sectionHeader}>
-                            <FontAwesome5 name="bell" size={16} color={COLORS.danger} />
-                            <Text style={styles.sectionTitle}>Low Stock Alerts</Text>
-                        </View>
-                        {lowStockProducts.map(product => (
-                            <View key={product.product_id} style={styles.alertItem}>
-                                <View style={styles.alertIcon}>
-                                    <FontAwesome5 name="cube" size={14} color={COLORS.danger} />
-                                </View>
-                                <View style={styles.alertInfo}>
-                                    <Text style={styles.alertName}>{product.name}</Text>
-                                    <Text style={styles.alertStock}>
-                                        Stock: {product.stock} {product.unit || ''}
-                                    </Text>
-                                </View>
-                                <View style={styles.restockBtn}>
-                                    <Text style={styles.restockBtnText}>Low</Text>
-                                </View>
+                            
+                            <View style={s.notesModalActions}>
+                                <TouchableOpacity 
+                                    style={s.notesCancelBtn}
+                                    onPress={() => setNotesModalVisible(false)}
+                                >
+                                    <Text style={s.notesCancelText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={[s.notesSaveBtn, savingNote && { opacity: 0.6 }]}
+                                    onPress={saveOfflineNote}
+                                    disabled={savingNote}
+                                >
+                                    {savingNote ? (
+                                        <ActivityIndicator size="small" color={C.white} />
+                                    ) : (
+                                        <Text style={s.notesSaveText}>Save Offline</Text>
+                                    )}
+                                </TouchableOpacity>
                             </View>
-                        ))}
+                        </ScrollView>
                     </View>
-                )}
-
-                {stockOutProducts.length > 0 && (
-                    <View style={styles.alertSection}>
-                        <View style={styles.sectionHeader}>
-                            <FontAwesome5 name="times-circle" size={16} color={COLORS.danger} />
-                            <Text style={styles.sectionTitle}>Out of Stock</Text>
-                        </View>
-                        {stockOutProducts.map(product => (
-                            <View key={product.product_id} style={styles.alertItem}>
-                                <View style={styles.alertIcon}>
-                                    <FontAwesome5 name="times" size={14} color={COLORS.white} />
-                                </View>
-                                <View style={styles.alertInfo}>
-                                    <Text style={styles.alertName}>{product.name}</Text>
-                                    <Text style={styles.alertStock}>Restock immediately</Text>
-                                </View>
-                                <View style={[styles.restockBtn, { backgroundColor: COLORS.danger }]}> 
-                                    <Text style={[styles.restockBtnText, { color: COLORS.white }]}>Out</Text>
-                                </View>
-                            </View>
-                        ))}
-                    </View>
-                )}
-
-                {/* Recent Transactions */}
-                <View style={styles.transactionSection}>
-                    <View style={styles.sectionHeader}>
-                        <Ionicons name="time-outline" size={18} color={COLORS.text} />
-                        <Text style={styles.sectionTitle}>Recent Transactions</Text>
-                    </View>
-                    {recentTransactions.length === 0 ? (
-                        <View style={styles.emptyState}>
-                            <Text style={styles.emptyText}>No transactions yet</Text>
-                        </View>
-                    ) : (
-                        recentTransactions.map(transaction => (
-                            <View key={transaction.transaction_id} style={styles.transactionItem}>
-                                <View>
-                                    <Text style={styles.transactionId}>#{transaction.short_id}</Text>
-                                    <Text style={styles.transactionDate}>
-                                        {new Date(transaction.date).toLocaleDateString()}
-                                    </Text>
-                                </View>
-                                <Text style={styles.transactionAmount}>
-                                    ₱{parseFloat(transaction.total).toFixed(2)}
-                                </Text>
-                            </View>
-                        ))
-                    )}
                 </View>
-
-                <View style={{ height: 20 }} />
-            </ScrollView>
+            </Modal>
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
-    root:        { flex: 1, backgroundColor: COLORS.bg },
-    loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
-    loadingText: { marginTop: 12, color: COLORS.textMuted, fontSize: 14 },
+const s = StyleSheet.create({
+    root:         {flex:1,backgroundColor:C.bg},
+    loadingScreen:{flex:1,justifyContent:'center',alignItems:'center',backgroundColor:C.bg},
+    loadingText:  {marginTop:12,color:C.gray,fontSize:14},
+    backdrop:     {...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,0.45)'},
 
-    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
-    drawer: {
-        position:        'absolute',
-        top:             0,
-        left:            0,
-        bottom:          0,
-        width:           DRAWER_W,
-        backgroundColor: COLORS.sidebar,
-        paddingTop:      56,
-        zIndex:          99,
-        elevation:       5,
-    },
-    drawerLogo: {
-        flexDirection:   'row',
-        alignItems:      'center',
-        gap:             12,
-        paddingHorizontal: 20,
-        paddingBottom:   32,
-    },
-    logoIcon: {
-        width:           38,
-        height:          38,
-        borderRadius:    10,
-        backgroundColor: COLORS.primary,
-        alignItems:      'center',
-        justifyContent:  'center',
-    },
-    logoText:    { fontSize: 22, fontWeight: '700', color: '#fff' },
+    drawer:       {position:'absolute',top:0,left:0,bottom:0,width:DRAWER_W,backgroundColor:'#1e2d3d',paddingTop:56,zIndex:99,elevation:6},
+    drawerLogo:   {flexDirection:'row',alignItems:'center',paddingHorizontal:20,paddingBottom:28,gap:12},
+    drawerLogoIcon:{width:38,height:38,borderRadius:10,backgroundColor:C.primary,alignItems:'center',justifyContent:'center'},
+    drawerLogoText:{fontSize:20,fontWeight:'800',color:C.white},
+    navItem:      {flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:20,paddingVertical:13,backgroundColor:'rgba(255,255,255,0.07)',marginHorizontal:12,borderRadius:10,marginBottom:6},
+    navItemText:  {color:C.white,fontSize:14,fontWeight:'500'},
+    drawerLogout: {flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:20,paddingVertical:14,marginTop:16,marginHorizontal:12},
+    drawerLogoutText:{color:C.danger,fontSize:14,fontWeight:'600'},
 
-    navItem: {
-        flexDirection:   'row',
-        alignItems:      'center',
-        gap:             12,
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        marginHorizontal: 12,
-        borderRadius:    10,
-        marginBottom:    8,
-    },
-    navItemText: { color: '#fff', fontSize: 15, fontWeight: '500' },
+    navbar:       {backgroundColor:C.primary,paddingTop:48,paddingBottom:12,paddingHorizontal:16,flexDirection:'row',justifyContent:'space-between',alignItems:'center',elevation:4},
+    navCenter:    {flexDirection:'row',alignItems:'center'},
+    navTitle:     {fontSize:18,fontWeight:'800',color:C.white},
+    navRight:     {flexDirection:'row',alignItems:'center',gap:12},
+    noteNavBtn:   {position:'relative',padding:8},
+    noteBadge:    {position:'absolute',top:-2,right:-2,backgroundColor:C.danger,borderRadius:10,minWidth:18,height:18,alignItems:'center',justifyContent:'center',paddingHorizontal:4},
+    noteBadgeText:{color:C.white,fontSize:10,fontWeight:'700'},
+    navUser:      {flexDirection:'row',alignItems:'center',gap:6},
+    navUsername:  {color:C.white,fontSize:12,fontWeight:'600'},
 
-    drawerLogout: {
-        flexDirection:   'row',
-        alignItems:      'center',
-        gap:             10,
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        marginTop:       16,
-        marginHorizontal: 12,
-    },
-    drawerLogoutText: { color: COLORS.danger, fontSize: 15, fontWeight: '600' },
+    pageTitle:    {flexDirection:'row',alignItems:'center',paddingHorizontal:16,paddingTop:16,paddingBottom:8},
+    pageTitleText:{fontSize:20,fontWeight:'600',color:C.dark},
 
-    header: {
-        flexDirection:     'row',
-        alignItems:        'center',
-        justifyContent:    'space-between',
-        paddingHorizontal: 16,
-        paddingVertical:   12,
-        backgroundColor:   COLORS.white,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-        elevation:         2,
-    },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-    userBadge: {
-        width:           36,
-        height:          36,
-        borderRadius:    18,
-        backgroundColor: COLORS.primaryLight,
-        alignItems:      'center',
-        justifyContent:  'center',
-    },
+    alertBanner:  {flexDirection:'row',alignItems:'center',backgroundColor:C.danger,marginHorizontal:12,marginBottom:12,borderRadius:12,padding:14,elevation:2,gap:12},
+    alertBannerIcon:{width:38,height:38,borderRadius:19,backgroundColor:'rgba(255,255,255,0.2)',alignItems:'center',justifyContent:'center'},
+    alertBannerTitle:{color:C.white,fontSize:14,fontWeight:'700'},
+    alertBannerMsg:  {color:C.white,fontSize:12,opacity:0.9},
 
-    welcomeRow: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
-    welcomeText: { fontSize: 14, color: COLORS.textMuted },
-    welcomeName: { fontWeight: '700', color: COLORS.text },
+    statsGrid:    {paddingHorizontal:12,paddingVertical:8,gap:10},
+    statCard:     {backgroundColor:C.white,borderRadius:12,padding:16,flexDirection:'row',alignItems:'center',gap:15,elevation:2},
+    statIcon:     {width:52,height:52,borderRadius:26,backgroundColor:C.primary,alignItems:'center',justifyContent:'center'},
+    statInfo:     {flex:1},
+    statLabel:    {fontSize:10,fontWeight:'600',color:C.gray,marginBottom:4,letterSpacing:0.5},
+    statNumber:   {fontSize:22,fontWeight:'700',color:C.dark},
 
-    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 12 },
-    statCard: {
-        flex:            1,
-        minWidth:        '45%',
-        backgroundColor: COLORS.white,
-        borderRadius:    12,
-        padding:         16,
-        alignItems:      'center',
-        elevation:       2,
-    },
-    statIconBg: {
-        width:           48,
-        height:          48,
-        borderRadius:    24,
-        backgroundColor: COLORS.primaryLight,
-        alignItems:      'center',
-        justifyContent:  'center',
-        marginBottom:    8,
-    },
-    statNumber: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-    statLabel:  { fontSize: 12, color: COLORS.textMuted, marginTop: 4, textAlign: 'center' },
+    dashboardCharts:{paddingHorizontal:12,gap:14,marginTop:4,marginBottom:8},
+    chartCard:    {backgroundColor:C.white,borderRadius:12,padding:16,elevation:2,overflow:'hidden'},
+    chartTitle:   {fontSize:14,fontWeight:'700',color:C.dark,marginBottom:12,paddingBottom:8,borderBottomWidth:1,borderBottomColor:C.light},
+    chart:        {marginLeft:-16,borderRadius:8},
+    chartEmpty:   {height:160,justifyContent:'center',alignItems:'center',backgroundColor:C.bg,borderRadius:8,gap:8},
+    chartEmptyText:{color:C.gray,fontSize:13},
 
-    alertSection: {
-        backgroundColor: COLORS.white,
-        margin:          12,
-        borderRadius:    12,
-        padding:         16,
-        elevation:       2,
-    },
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-    sectionTitle:  { fontSize: 16, fontWeight: '700', color: COLORS.text },
+    monthScroll:  {marginBottom:12},
+    monthSelector:{flexDirection:'row',gap:6,paddingVertical:2},
+    monthOption:  {paddingHorizontal:12,paddingVertical:6,borderRadius:20,backgroundColor:C.bg,borderWidth:1,borderColor:C.light},
+    monthOptionActive:{backgroundColor:C.primary,borderColor:C.primary},
+    monthOptionText:  {fontSize:11,color:C.gray,fontWeight:'500'},
+    monthOptionTextActive:{color:C.white,fontWeight:'700'},
 
-    inventorySection: {
-        backgroundColor: COLORS.white,
-        marginHorizontal: 12,
-        borderRadius: 12,
-        padding: 16,
-        elevation: 2,
-    },
-    searchInput: {
-        backgroundColor: COLORS.bg,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        color: COLORS.text,
-        marginBottom: 14,
-    },
-    productRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-    },
-    productMeta: { flex: 1, paddingRight: 10 },
-    productName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-    productCategory: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-    productDetailGroup: { alignItems: 'flex-end' },
-    productStock: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-    productStatus: {
-        marginTop: 4,
-        fontSize: 11,
-        fontWeight: '700',
-        paddingVertical: 4,
-        paddingHorizontal: 8,
-        borderRadius: 10,
-        overflow: 'hidden',
-    },
-    statusOk: { color: COLORS.success, backgroundColor: '#e6f7ed' },
-    statusLow: { color: COLORS.warning, backgroundColor: '#fff4e5' },
-    statusOut: { color: COLORS.danger, backgroundColor: '#fdecea' },
-    alertBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.danger,
-        marginHorizontal: 12,
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 12,
-    },
-    alertBannerText: { color: COLORS.white, marginLeft: 8, fontSize: 13, flex: 1 },
-    productModalContainer: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' },
-    productModalSheet: {
-        margin: 20,
-        borderRadius: 20,
-        backgroundColor: COLORS.white,
-        padding: 20,
-        maxHeight: '85%',
-        elevation: 6,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-    modalInfoRow: { marginBottom: 12 },
-    modalLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
-    modalValue: { fontSize: 15, color: COLORS.text, fontWeight: '600' },
-    statusBadge: {
-        alignSelf: 'flex-start',
-        fontSize: 12,
-        fontWeight: '700',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 12,
-        overflow: 'hidden',
-    },
-    adjustmentRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-    adjustButton: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 12,
-        backgroundColor: COLORS.border,
-        alignItems: 'center',
-    },
-    adjustButtonActive: { backgroundColor: COLORS.primary },
-    adjustButtonText: { color: COLORS.textMuted, fontWeight: '700' },
-    adjustButtonTextActive: { color: COLORS.white },
-    adjustInput: {
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        color: COLORS.text,
-        marginBottom: 12,
-        backgroundColor: '#fbfbfb',
-    },
-    primaryButton: {
-        backgroundColor: COLORS.primary,
-        borderRadius: 12,
-        paddingVertical: 14,
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    primaryButtonText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
+    mobileCard:   {backgroundColor:C.white,borderRadius:12,marginHorizontal:12,marginBottom:12,padding:16,elevation:2},
+    mobileCardHeader:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:12,paddingBottom:8,borderBottomWidth:1,borderBottomColor:C.light},
+    mobileCardTitle:{fontSize:14,fontWeight:'600',color:C.dark},
 
-    alertItem: {
-        flexDirection:     'row',
-        alignItems:        'center',
-        gap:               12,
-        paddingVertical:   12,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-    },
-    alertIcon: {
-        width:           32,
-        height:          32,
-        borderRadius:    16,
-        backgroundColor: '#f8d7da',
-        alignItems:      'center',
-        justifyContent:  'center',
-    },
-    alertInfo:    { flex: 1 },
-    alertName:    { fontSize: 14, fontWeight: '600', color: COLORS.text },
-    alertStock:   { fontSize: 12, color: COLORS.danger, marginTop: 2 },
-    restockBtn: {
-        backgroundColor:  '#f8d7da',
-        paddingHorizontal: 10,
-        paddingVertical:   4,
-        borderRadius:      6,
-    },
-    restockBtnText: { color: COLORS.danger, fontSize: 11, fontWeight: '600' },
+    alertRow:     {flexDirection:'row',alignItems:'center',gap:10,paddingVertical:10,borderBottomWidth:1,borderBottomColor:C.light},
+    alertDot:     {width:32,height:32,borderRadius:16,alignItems:'center',justifyContent:'center'},
+    alertName:    {fontSize:13,fontWeight:'600',color:C.dark},
+    alertStock:   {fontSize:11,marginTop:2},
+    restockBtn:   {backgroundColor:C.primary,paddingHorizontal:12,paddingVertical:6,borderRadius:8},
+    restockBtnText:{color:C.white,fontSize:11,fontWeight:'700'},
+    viewAll:      {textAlign:'center',color:C.primary,marginTop:12,fontSize:13,fontWeight:'500'},
 
-    transactionSection: {
-        backgroundColor: COLORS.white,
-        margin:          12,
-        borderRadius:    12,
-        padding:         16,
-        elevation:       2,
-    },
-    transactionItem: {
-        flexDirection:     'row',
-        justifyContent:    'space-between',
-        alignItems:        'center',
-        paddingVertical:   12,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-    },
-    transactionId:     { fontSize: 14, fontWeight: '600', color: COLORS.text },
-    transactionDate:   { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-    transactionAmount: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
+    // Notes Styles
+    viewAllNotes: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.white,
+    backgroundColor: C.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    overflow: 'hidden',
+    textAlign: 'center',
+},
+    emptyNotes:   {alignItems:'center',justifyContent:'center',paddingVertical:30,backgroundColor:C.bg,borderRadius:12,gap:8},
+    emptyNotesText:{fontSize:14,fontWeight:'600',color:C.text},
+    emptyNotesSubtext:{fontSize:11,color:C.gray},
+    noteItem:     {flexDirection:'row',alignItems:'flex-start',gap:12,paddingVertical:12,borderBottomWidth:1,borderBottomColor:C.light},
+    noteIcon:     {width:36,height:36,borderRadius:18,backgroundColor:C.primaryLight,alignItems:'center',justifyContent:'center'},
+    noteContent:  {flex:1},
+    noteTitle:    {fontSize:14,fontWeight:'700',color:C.dark,marginBottom:4},
+    notePreview:  {fontSize:12,color:C.gray,marginBottom:2},
+    noteProduct:  {fontSize:11,color:C.primary,fontWeight:'500',marginBottom:2},
+    noteTime:     {fontSize:10,color:C.gray,marginTop:2},
+    noteDeleteBtn:{padding:8},
 
-    emptyState: { padding: 40, alignItems: 'center' },
-    emptyText:  { color: COLORS.textMuted, fontSize: 14 },
+    notesModalContainer:{flex:1,justifyContent:'flex-end',backgroundColor:'rgba(0,0,0,0.3)'},
+    notesModalSheet:{backgroundColor:C.white,borderTopLeftRadius:20,borderTopRightRadius:20,maxHeight:'90%'},
+    notesModalHeader:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:20,paddingVertical:16,borderBottomWidth:1,borderBottomColor:C.light},
+    notesModalTitle:{fontSize:18,fontWeight:'700',color:C.dark},
+    notesModalBody:{paddingHorizontal:20,paddingTop:16,paddingBottom:20},
+    notesLabel:   {fontSize:13,fontWeight:'600',color:C.dark,marginBottom:8,marginTop:8},
+    notesInput:   {borderWidth:1,borderColor:C.light,borderRadius:10,paddingHorizontal:14,paddingVertical:12,fontSize:14,color:C.dark,backgroundColor:C.white,marginBottom:16},
+    notesTextArea:{minHeight:100,textAlignVertical:'top'},
+    offlineInfo:  {flexDirection:'row',alignItems:'center',gap:10,backgroundColor:'#fff3cd',padding:12,borderRadius:10,marginBottom:20},
+    offlineInfoText:{flex:1,fontSize:12,color:'#856404'},
+    notesModalActions:{flexDirection:'row',gap:12,marginTop:8,marginBottom:20},
+    notesCancelBtn:{flex:1,paddingVertical:12,borderWidth:1,borderColor:C.light,borderRadius:10,alignItems:'center'},
+    notesCancelText:{fontSize:14,fontWeight:'600',color:C.text},
+    notesSaveBtn: {flex:1,backgroundColor:C.primary,paddingVertical:12,borderRadius:10,alignItems:'center'},
+    notesSaveText:{fontSize:14,fontWeight:'600',color:C.white},
+
+    badge:   {fontSize:10,fontWeight:'700',paddingHorizontal:8,paddingVertical:3,borderRadius:20,overflow:'hidden',textAlign:'center'},
+    badgeIn: {backgroundColor:'#d4edda',color:'#155724'},
+    badgeLow:{backgroundColor:'#fff3cd',color:'#856404'},
+    badgeOut:{backgroundColor:'#f8d7da',color:'#721c24'},
+
+    empty:    {paddingVertical:24,alignItems:'center'},
+    emptyText:{color:C.gray,fontSize:13},
+    footer:   {textAlign:'center',fontSize:11,color:C.gray,paddingVertical:8,marginTop:8},
+
+    modalWrap:  {flex:1,justifyContent:'center',backgroundColor:'rgba(0,0,0,0.45)',padding:20},
+    modalSheet: {backgroundColor:C.white,borderRadius:16,padding:20,maxHeight:'88%',elevation:8},
+    modalHead:  {flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:16},
+    modalTitle: {fontSize:18,fontWeight:'700',color:C.dark},
+    modalRow:   {marginBottom:12},
+    modalLabel: {fontSize:11,color:C.gray,marginBottom:4,fontWeight:'600',textTransform:'uppercase'},
+    modalValue: {fontSize:15,color:C.dark,fontWeight:'600'},
+    modalDivider:{height:1,backgroundColor:C.light,marginVertical:16},
+    adjustTitle:{fontSize:14,fontWeight:'700',color:C.dark,marginBottom:10},
+    adjustRow:  {flexDirection:'row',gap:10,marginBottom:12},
+    adjustBtn:  {flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',paddingVertical:11,borderRadius:10,backgroundColor:C.bg,borderWidth:1,borderColor:C.light},
+    adjustBtnActive:{backgroundColor:C.primary,borderColor:C.primary},
+    adjustBtnText:{fontSize:13,fontWeight:'600',color:C.gray},
+    adjustBtnTextActive:{color:C.white},
+    adjustInput:{borderWidth:1,borderColor:C.light,borderRadius:10,paddingHorizontal:14,paddingVertical:12,fontSize:15,color:C.dark,marginBottom:12,backgroundColor:C.bg},
+    applyBtn:   {backgroundColor:C.primary,borderRadius:10,paddingVertical:13,alignItems:'center'},
+    applyBtnText:{color:C.white,fontWeight:'700',fontSize:14},
 });
+
+export default AdminDashboard;
