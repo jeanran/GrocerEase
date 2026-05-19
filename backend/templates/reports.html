@@ -11,9 +11,15 @@
 
 <div class="reports-container">
 
-    <h1>
-        <i class="fas fa-chart-line"></i> Reports
-    </h1>
+    <!-- page header with print button -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h1 style="margin:0;">
+            <i class="fas fa-chart-line"></i> Reports
+        </h1>
+        <button onclick="printReport(currentTab)" class="btn-print">
+            <i class="fas fa-print"></i> Print Report
+        </button>
+    </div>
 
     <div class="report-tabs">
         <button class="tab-btn active" onclick="switchTab('sales')">Sales</button>
@@ -75,14 +81,47 @@
 
 </div>
 
+<style>
+    /* Print button — matches web theme */
+    .btn-print {
+        background: #1e6f5c;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.2s;
+    }
+    .btn-print:hover { background: #0e5545; }
+
+    /* Hide non-printable elements when printing */
+    @media print {
+        .sidebar,
+        .btn-print,
+        .report-tabs,
+        nav,
+        header { display: none !important; }
+        body { background: white !important; }
+        .reports-container { margin: 0 !important; padding: 0 !important; }
+    }
+</style>
+
 <script>
     let userEl = document.getElementById('userName');
     if (userEl) userEl.innerText = '{{ username }}';
 
-    let salesChart = null;
+    let salesChart  = null;
+    let currentTab  = 'sales'; // ← tracks which tab is active for print
 
     // ── TAB SWITCH ─────────────────────────────────────
     function switchTab(tab) {
+        currentTab = tab; // ← update tracker
+
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
         if (tab === 'sales') {
@@ -101,18 +140,16 @@
     // ── SALES REPORT ───────────────────────────────────
     async function loadSalesReport() {
         try {
-            const res = await fetch('/api/reports/sales/');
+            const res  = await fetch('/api/reports/sales/');
             const data = await res.json();
 
-            // Summary
-            document.getElementById('totalSalesAmount').innerText = '₱' + data.total_sales.toFixed(2);
+            document.getElementById('totalSalesAmount').innerText  = '₱' + data.total_sales.toFixed(2);
             document.getElementById('totalTransactions').innerText = data.total_transactions;
-            document.getElementById('avgSale').innerText = '₱' + data.avg_sale.toFixed(2);
+            document.getElementById('avgSale').innerText           = '₱' + data.avg_sale.toFixed(2);
 
-            // Chart
-            let labels = data.products.map(p => p.name);
+            let labels    = data.products.map(p => p.name);
             let chartData = data.products.map(p => p.revenue);
-            let chartEl = document.getElementById('salesChart');
+            let chartEl   = document.getElementById('salesChart');
 
             if (chartEl) {
                 if (salesChart) salesChart.destroy();
@@ -124,27 +161,21 @@
                             label: 'Revenue (₱)',
                             data: chartData,
                             backgroundColor: '#1e6f5c',
-                            borderRadius: 8
+                            borderRadius: 8,
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false }
-                        },
-                        scales: {
-                            y: { beginAtZero: true }
-                        }
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } },
                     }
                 });
             }
 
-            // Table — correct headers: Product Name | Qty Sold | Revenue
             if (data.products.length === 0) {
-                document.getElementById('salesTableBody').innerHTML = `
-                    <tr><td colspan="3" style="text-align:center;color:#95a5a6;padding:20px;">No sales data yet.</td></tr>
-                `;
+                document.getElementById('salesTableBody').innerHTML =
+                    '<tr><td colspan="3" style="text-align:center;color:#95a5a6;padding:20px;">No sales data yet.</td></tr>';
             } else {
                 document.getElementById('salesTableBody').innerHTML = data.products.map(p => `
                     <tr>
@@ -157,26 +188,24 @@
 
         } catch (err) {
             console.error('Failed to load sales report:', err);
-            document.getElementById('salesTableBody').innerHTML = `
-                <tr><td colspan="3" style="text-align:center;color:red;padding:20px;">Failed to load data.</td></tr>
-            `;
+            document.getElementById('salesTableBody').innerHTML =
+                '<tr><td colspan="3" style="text-align:center;color:red;padding:20px;">Failed to load data.</td></tr>';
         }
     }
 
     // ── INVENTORY REPORT ───────────────────────────────
     async function loadInventoryReport() {
         try {
-            const res = await fetch('/api/reports/inventory/');
+            const res  = await fetch('/api/reports/inventory/');
             const data = await res.json();
 
             document.getElementById('totalProductsCount').innerText = data.total_products;
-            document.getElementById('totalStockValue').innerText = '₱' + data.total_stock_value.toFixed(2);
-            document.getElementById('lowStockCount').innerText = data.low_stock;
+            document.getElementById('totalStockValue').innerText    = '₱' + data.total_stock_value.toFixed(2);
+            document.getElementById('lowStockCount').innerText      = data.low_stock;
 
             if (data.products.length === 0) {
-                document.getElementById('inventoryTableBody').innerHTML = `
-                    <tr><td colspan="6" style="text-align:center;color:#95a5a6;padding:20px;">No products yet.</td></tr>
-                `;
+                document.getElementById('inventoryTableBody').innerHTML =
+                    '<tr><td colspan="6" style="text-align:center;color:#95a5a6;padding:20px;">No products yet.</td></tr>';
             } else {
                 document.getElementById('inventoryTableBody').innerHTML = data.products.map(p => `
                     <tr>
@@ -197,41 +226,126 @@
 
         } catch (err) {
             console.error('Failed to load inventory report:', err);
-            document.getElementById('inventoryTableBody').innerHTML = `
-                <tr><td colspan="6" style="text-align:center;color:red;padding:20px;">Failed to load data.</td></tr>
-            `;
+            document.getElementById('inventoryTableBody').innerHTML =
+                '<tr><td colspan="6" style="text-align:center;color:red;padding:20px;">Failed to load data.</td></tr>';
         }
     }
 
     // ── PRINT ──────────────────────────────────────────
+    // Opens a clean printable window — works for physical print + Save as PDF
     function printReport(type) {
-        let printContent = document
-            .getElementById(type === 'sales' ? 'salesPanel' : 'inventoryPanel')
-            .cloneNode(true);
+        const panelId      = type === 'sales' ? 'salesPanel' : 'inventoryPanel';
+        const printContent = document.getElementById(panelId).cloneNode(true);
+        const title        = type === 'sales' ? 'Sales Report' : 'Inventory Report';
+        const generated    = new Date().toLocaleString();
 
-        let printWindow = window.open('', '_blank');
+        // Remove canvas (chart) from print — replace with note
+        const canvas = printContent.querySelector('canvas');
+        if (canvas) {
+            const note = document.createElement('p');
+            note.style.cssText = 'color:#666;font-style:italic;margin:10px 0;';
+            note.innerText = '[Chart not available in print view]';
+            canvas.replaceWith(note);
+        }
+
+        const printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>${type.toUpperCase()} Report - GrocerEase</title>
+                    <title>${title} - GrocerEase</title>
                     <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; }
-                        h1 { color: #1e6f5c; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-                        th { background: #1e6f5c; color: white; }
-                        tr:nth-child(even) { background: #f9f9f9; }
+                        * { box-sizing: border-box; margin: 0; padding: 0; }
+                        body {
+                            font-family: Arial, sans-serif;
+                            padding: 30px;
+                            color: #2c3e50;
+                        }
+                        .print-header {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-start;
+                            margin-bottom: 24px;
+                            padding-bottom: 16px;
+                            border-bottom: 3px solid #1e6f5c;
+                        }
+                        .print-logo {
+                            font-size: 1.6rem;
+                            font-weight: 800;
+                            color: #1e6f5c;
+                        }
+                        .print-logo span { color: #f39c12; }
+                        .print-meta { text-align: right; font-size: 0.85rem; color: #666; }
+                        .print-title {
+                            font-size: 1.3rem;
+                            font-weight: 700;
+                            color: #2c3e50;
+                            margin-bottom: 16px;
+                        }
+                        .report-summary {
+                            display: flex;
+                            gap: 24px;
+                            background: #f0f2f5;
+                            padding: 14px 18px;
+                            border-radius: 8px;
+                            margin-bottom: 20px;
+                            font-size: 0.95rem;
+                            font-weight: 600;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-top: 12px;
+                            font-size: 0.9rem;
+                        }
+                        th {
+                            background: #1e6f5c;
+                            color: white;
+                            padding: 10px 12px;
+                            text-align: left;
+                            font-weight: 600;
+                        }
+                        td {
+                            padding: 10px 12px;
+                            border-bottom: 1px solid #e9ecef;
+                        }
+                        tr:nth-child(even) td { background: #f8f9fa; }
+                        h3 {
+                            font-size: 1rem;
+                            color: #2c3e50;
+                            margin: 20px 0 10px;
+                        }
+                        .print-footer {
+                            margin-top: 30px;
+                            padding-top: 12px;
+                            border-top: 1px solid #dee2e6;
+                            text-align: center;
+                            font-size: 0.8rem;
+                            color: #95a5a6;
+                        }
                     </style>
                 </head>
                 <body>
-                    <h1>GrocerEase — ${type === 'sales' ? 'Sales' : 'Inventory'} Report</h1>
-                    <p>Generated: ${new Date().toLocaleString()}</p>
+                    <div class="print-header">
+                        <div class="print-logo">Grocer<span>Ease</span></div>
+                        <div class="print-meta">
+                            <div><strong>${title}</strong></div>
+                            <div>Generated: ${generated}</div>
+                        </div>
+                    </div>
+                    <div class="print-title">
+                        ${type === 'sales' ? 'Sales Report' : 'Inventory Report'}
+                    </div>
                     ${printContent.innerHTML}
+                    <div class="print-footer">
+                        © 2026 GrocerEase – Sales & Inventory System. All rights reserved.
+                    </div>
                 </body>
             </html>
         `);
         printWindow.document.close();
-        printWindow.print();
+        printWindow.focus();
+        // slight delay so styles load before printing
+        setTimeout(() => { printWindow.print(); }, 400);
     }
 
     // ── LOGOUT ─────────────────────────────────────────

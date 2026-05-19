@@ -318,7 +318,7 @@ const handleStockAlertPress = () => {
                             {icon:'arrow-circle-down', label:'Stock In', onPress:()=>{closeDrawer();navigation.navigate('StockIn',{user});}},
                             {icon:'arrow-circle-up', label:'Stock Out', onPress:()=>{closeDrawer();navigation.navigate('StockOut',{user});}},
                             {icon:'history', label:'Stock In History', onPress:()=>{closeDrawer();navigation.navigate('StockInHistory',{user});}},
-                            {icon:'users', label:'Manage Users', onPress:()=>{closeDrawer();navigation.navigate('Users',{user});}},
+                        
                         ].map((item,idx)=>(
                             <TouchableOpacity key={idx} style={s.navItem} onPress={item.onPress}>
                                 <FontAwesome5 name={item.icon} size={16} color={C.white}/>

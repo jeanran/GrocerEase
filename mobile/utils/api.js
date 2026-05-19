@@ -28,7 +28,7 @@ const tryFetch = async (fullUrl, options) => {
             const json = JSON.parse(text || '{}');
             message = json.message || JSON.stringify(json);
         } catch (_error) {
-            // Keep raw text message if JSON parse fails
+            
         }
         const err = new Error(`${response.status} ${response.statusText}: ${message}`);
         err.http = true;
@@ -44,12 +44,12 @@ const tryFetch = async (fullUrl, options) => {
 };
 
 export const fetchJson = async (urlOrPath, options = {}) => {
-    // If absolute URL provided, use it directly
+    
     if (typeof urlOrPath === 'string' && /^https?:\/\//i.test(urlOrPath)) {
         return tryFetch(urlOrPath, options);
     }
 
-    // Otherwise try candidate hosts in order until one succeeds
+    
     const tried = [];
     let lastError = null;
     for (const host of DEFAULT_HOSTS) {
