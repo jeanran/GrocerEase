@@ -499,19 +499,26 @@ def api_dashboard_stats(request):
     if not is_logged_in(request):
         return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
 
-    total_products     = Product.objects.count()
-    low_stock          = Product.objects.filter(stock__lte=F('reorder_level')).count()
+    total_products = Product.objects.count()
+    
+    # Out of Stock: products with stock = 0
+    out_of_stock = Product.objects.filter(stock=0).count()
+    
+    # Low Stock: products with stock > 0 AND stock <= reorder_level
+    low_stock = Product.objects.filter(stock__gt=0, stock__lte=F('reorder_level')).count()
+    
     total_transactions = Transaction.objects.count()
-    today_sales        = Transaction.objects.filter(
+    today_sales = Transaction.objects.filter(
         date__date=date.today()
     ).aggregate(total=Sum('total'))['total'] or 0
 
     return JsonResponse({
-        'success':            True,
-        'total_products':     total_products,
-        'low_stock':          low_stock,
+        'success': True,
+        'total_products': total_products,
+        'out_of_stock': out_of_stock,      # ← Add this
+        'low_stock': low_stock,            # ← Fixed (excludes out of stock)
         'total_transactions': total_transactions,
-        'today_sales':        float(today_sales),
+        'today_sales': float(today_sales),
     })
 
 

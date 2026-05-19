@@ -3,6 +3,108 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+<style>
+    /* ── Alert Notifications ── */
+    .alert-section {
+        margin-bottom: 20px;
+    }
+
+    .alert-card {
+        border-radius: 10px;
+        padding: 14px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+        border-left: 4px solid;
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-10px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .alert-card.low-stock {
+        background: #ffeecd;
+        border-left-color: #e28474;
+        color: #856404;
+    }
+
+    .alert-card.out-of-stock {
+        background: #f8d7da;
+        border-left-color: #e74c3c;
+        color: #721c24;
+    }
+
+    .alert-icon {
+        font-size: 1.2rem;
+        min-width: 24px;
+    }
+
+    .alert-content { flex: 1; }
+
+    .alert-content strong {
+        display: block;
+        font-size: 0.9rem;
+        margin-bottom: 4px;
+    }
+
+    .alert-items {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+    }
+
+    .alert-item-badge {
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+
+    .alert-card.low-stock .alert-item-badge {
+        background: #f39c12;
+        color: white;
+    }
+
+    .alert-card.out-of-stock .alert-item-badge {
+        background: #e74c3c;
+        color: white;
+    }
+
+    .alert-dismiss {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+        opacity: 0.6;
+        padding: 4px;
+        transition: opacity 0.2s;
+    }
+
+    .alert-dismiss:hover { opacity: 1; }
+
+    .alert-section-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* ── Stock Out stat card ── */
+    .stat-card.danger .stat-icon {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+    }
+
+    .stat-card.danger .stat-number {
+        color: #e74c3c;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -13,6 +115,44 @@
         <i class="fas fa-tachometer-alt"></i> Dashboard Overview
     </h1>
 
+    <!-- ══ ALERT NOTIFICATIONS ══ -->
+    <div class="alert-section" id="alertSection" style="display:none;">
+        <div class="alert-section-title">
+            <i class="fas fa-bell"></i> Stock Alerts
+        </div>
+
+        <!-- Out of Stock Alert -->
+        <div class="alert-card out-of-stock" id="outOfStockAlert" style="display:none;">
+            <div class="alert-icon">
+                <i class="fas fa-times-circle"></i>
+            </div>
+            <div class="alert-content">
+                <strong></i> Out of Stock Items</strong>
+                <span>The following products have zero stock — restock immediately:</span>
+                <div class="alert-items" id="outOfStockList"></div>
+            </div>
+            <button class="alert-dismiss" onclick="dismissAlert('outOfStockAlert')" title="Dismiss">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Low Stock Alert -->
+        <div class="alert-card low-stock" id="lowStockAlert" style="display:none;">
+            <div class="alert-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="alert-content">
+                <strong></i> Low Stock Items</strong>
+                <span>The following products are below their reorder level:</span>
+                <div class="alert-items" id="lowStockList"></div>
+            </div>
+            <button class="alert-dismiss" onclick="dismissAlert('lowStockAlert')" title="Dismiss">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ══ STAT CARDS ══ -->
     <div class="stats-grid">
 
         <div class="stat-card">
@@ -55,8 +195,20 @@
             </div>
         </div>
 
+        
+        <div class="stat-card danger">
+            <div class="stat-icon">
+                <i class="fas fa-times-circle"></i>
+            </div>
+            <div class="stat-info">
+                <h3>OUT OF STOCK</h3>
+                <div class="stat-number" id="outOfStock">0</div>
+            </div>
+        </div>
+
     </div>
 
+    <!-- ══ CHARTS ══ -->
     <div class="dashboard-charts">
 
         <!-- Weekly Sales -->
@@ -68,7 +220,6 @@
         <!-- Monthly Sales -->
         <div class="chart-card">
             <h3>Monthly Sales</h3>
-
             <div style="margin-bottom: 10px;">
                 <select id="monthSelector">
                     <option value="0">January</option>
@@ -85,24 +236,20 @@
                     <option value="11">December</option>
                 </select>
             </div>
-
             <canvas id="monthlyChart" height="200"></canvas>
         </div>
 
         <!-- Quick Actions -->
         <div class="quick-actions-wrapper">
             <div class="quick-actions">
-
                 <a href="{% url 'pos' %}" class="quick-action-btn">
                     <i class="fas fa-shopping-cart"></i>
                     <span>New Sale</span>
                 </a>
-
                 <a href="{% url 'products' %}" class="quick-action-btn">
                     <i class="fas fa-plus-circle"></i>
                     <span>Add Product</span>
                 </a>
-
             </div>
         </div>
 
@@ -110,67 +257,125 @@
 
 </div>
 
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', async function () {
 
-    let weeklyChart = null;
+    let weeklyChart  = null;
     let monthlyChart = null;
 
-    // ── STATS ──────────────────────────────────────────
+    // ── STATS + ALERTS ─────────────────────────────────
     async function loadStats() {
         try {
-            const res = await fetch('/api/dashboard/stats/');
+            const res  = await fetch('/api/dashboard/stats/');
             const data = await res.json();
 
-            document.getElementById('totalProducts').innerText = data.total_products;
-            document.getElementById('lowStock').innerText = data.low_stock;
+            document.getElementById('totalProducts').innerText     = data.total_products;
+            document.getElementById('lowStock').innerText          = data.low_stock;
             document.getElementById('totalTransactions').innerText = data.total_transactions;
-            document.getElementById('todaySales').innerText = '₱ ' + data.today_sales.toFixed(2);
+            document.getElementById('todaySales').innerText        = '₱ ' + data.today_sales.toFixed(2);
+            document.getElementById('outOfStock').innerText        = data.out_of_stock || 0;
+
         } catch (err) {
             console.error('Failed to load stats:', err);
         }
     }
 
+    // ── LOAD STOCK ALERTS ──────────────────────────────
+    async function loadStockAlerts() {
+        try {
+            const res      = await fetch('/api/products/');
+            const data     = await res.json();
+            const products = data.products || [];
+
+            const outOfStock = products.filter(p => p.stock === 0);
+            const lowStock   = products.filter(p => p.stock > 0 && p.stock <= (p.reorder_level || 10));
+
+            let hasAlert = false;
+
+            // Out of Stock Alert
+            if (outOfStock.length > 0) {
+                hasAlert = true;
+                document.getElementById('outOfStockAlert').style.display = 'flex';
+                document.getElementById('outOfStockList').innerHTML = outOfStock.map(p =>
+                    `<span class="alert-item-badge">
+                        ${p.name}
+                        <small>(${p.unit || 'pcs'})</small>
+                    </span>`
+                ).join('');
+            }
+
+            // Low Stock Alert
+            if (lowStock.length > 0) {
+                hasAlert = true;
+                document.getElementById('lowStockAlert').style.display = 'flex';
+                document.getElementById('lowStockList').innerHTML = lowStock.map(p =>
+                    `<span class="alert-item-badge">
+                        ${p.name}
+                        <small>(${p.stock} left)</small>
+                    </span>`
+                ).join('');
+            }
+
+            // Show alert section if any alerts
+            if (hasAlert) {
+                document.getElementById('alertSection').style.display = 'block';
+            }
+
+        } catch (err) {
+            console.error('Failed to load stock alerts:', err);
+        }
+    }
+
+    // ── DISMISS ALERT ──────────────────────────────────
+    window.dismissAlert = function(alertId) {
+        document.getElementById(alertId).style.display = 'none';
+
+        // Hide section if both dismissed
+        let outHidden = document.getElementById('outOfStockAlert').style.display === 'none';
+        let lowHidden = document.getElementById('lowStockAlert').style.display   === 'none';
+        if (outHidden && lowHidden) {
+            document.getElementById('alertSection').style.display = 'none';
+        }
+    };
+
     // ── CHARTS ─────────────────────────────────────────
     async function loadCharts(selectedMonth = null) {
         try {
-            const res = await fetch('/api/dashboard/charts/');
+            const res  = await fetch('/api/dashboard/charts/');
             const data = await res.json();
 
-            // Set month selector to current month
             let monthSelector = document.getElementById('monthSelector');
             if (monthSelector && selectedMonth === null) {
                 monthSelector.value = data.current_month;
             }
 
-            // Weekly Sales Chart
+            // Weekly Chart
             let chartEl = document.getElementById('salesChart');
             if (chartEl) {
                 if (weeklyChart) weeklyChart.destroy();
                 weeklyChart = new Chart(chartEl, {
                     type: 'line',
                     data: {
-                        labels: data.weekly.map(d => d.label),
+                        labels:   data.weekly.map(d => d.label),
                         datasets: [{
-                            label: 'Sales (₱)',
-                            data: data.weekly.map(d => d.total),
-                            borderColor: '#1e6f5c',
+                            label:           'Sales (₱)',
+                            data:            data.weekly.map(d => d.total),
+                            borderColor:     '#1e6f5c',
                             backgroundColor: 'rgba(30,111,92,0.1)',
-                            tension: 0.4,
-                            fill: true
+                            tension:         0.4,
+                            fill:            true,
                         }]
                     },
                     options: {
                         responsive: true,
-                        plugins: { legend: { display: false } },
-                        scales: { y: { beginAtZero: true } }
+                        plugins:    { legend: { display: false } },
+                        scales:     { y: { beginAtZero: true } },
                     }
                 });
             }
 
-            // Monthly Sales Chart
             renderMonthlyChart(data.monthly, selectedMonth ?? data.current_month);
 
         } catch (err) {
@@ -180,7 +385,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     async function loadMonthlyByMonth(month) {
         try {
-            const res = await fetch(`/api/dashboard/charts/?month=${month + 1}`);
+            const res  = await fetch(`/api/dashboard/charts/?month=${month + 1}`);
             const data = await res.json();
             renderMonthlyChart(data.monthly, month);
         } catch (err) {
@@ -191,29 +396,27 @@ document.addEventListener('DOMContentLoaded', async function () {
     function renderMonthlyChart(monthlyData, month) {
         let monthlyEl = document.getElementById('monthlyChart');
         if (!monthlyEl) return;
-
         if (monthlyChart) monthlyChart.destroy();
-
         monthlyChart = new Chart(monthlyEl, {
             type: 'bar',
             data: {
-                labels: monthlyData.map(d => d.day),
+                labels:   monthlyData.map(d => d.day),
                 datasets: [{
-                    label: 'Daily Sales (₱)',
-                    data: monthlyData.map(d => d.total),
+                    label:           'Daily Sales (₱)',
+                    data:            monthlyData.map(d => d.total),
                     backgroundColor: 'rgba(30,111,92,0.5)',
-                    borderColor: '#1e6f5c',
-                    borderWidth: 1
+                    borderColor:     '#1e6f5c',
+                    borderWidth:     1,
                 }]
             },
             options: {
                 responsive: true,
-                scales: { y: { beginAtZero: true } }
+                scales: { y: { beginAtZero: true } },
             }
         });
     }
 
-    // Month selector change
+    // Month selector
     let monthSelector = document.getElementById('monthSelector');
     if (monthSelector) {
         monthSelector.addEventListener('change', function () {
@@ -221,25 +424,18 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     }
 
-    // Username from Django session
+    // Username
     let userEl = document.getElementById('userName');
     if (userEl) userEl.innerText = '{{ username }}';
-
-    // Sidebar toggle
-    let toggleBtn = document.getElementById('sidebarToggle');
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', function () {
-            document.querySelector('.sidebar').classList.toggle('active');
-        });
-    }
 
     // Logout
     window.logout = function() {
         window.location.href = '/logout/';
-    }
+    };
 
-    // Init
+    // ── INIT ───────────────────────────────────────────
     await loadStats();
+    await loadStockAlerts();   
     await loadCharts();
 
 });
