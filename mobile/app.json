@@ -20,7 +20,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1e6f5c"
       },
-      "package": "com.grocerease.app"
+      "package": "com.grocerease.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       [
@@ -34,8 +38,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "b32e6469-97ac-48bf-89bd-892a3919867c"
+        "projectId": "7712a952-6f3c-4385-b3e8-dfacdcaa3627"
       }
-    }
+    },
+    "owner": "jeanran"
   }
 }
