@@ -464,7 +464,7 @@ const s = StyleSheet.create({
     btnAdd:       {flexDirection:'row',alignItems:'center',backgroundColor:C.primary,paddingHorizontal:14,paddingVertical:9,borderRadius:10,elevation:2},
     btnAddText:   {color:C.white,fontWeight:'700',fontSize:13},
 
-    // Summary Cards - 2x2 Grid with Green Left Border & White Icons
+    // Summary Cards 
     summaryGrid:  {flexDirection:'row',flexWrap:'wrap',paddingHorizontal:12,gap:12,marginBottom:20},
     summaryCard:  {
         flex: 1,

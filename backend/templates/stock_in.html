@@ -223,7 +223,7 @@
                     `<option value="${p.product_id}" data-stock="${p.stock}" data-unit="${p.unit || 'pieces'}">${p.name}</option>`
                 ).join('');
             
-            // Auto-fill unit and show stock info when product changes
+            
             select.addEventListener('change', function() {
                 let selected = this.options[this.selectedIndex];
                 if (selected && selected.value) {
@@ -284,7 +284,7 @@
             return;
         }
         
-        // Disable button to prevent double submission
+        
         let submitBtn = document.querySelector('.btn-record');
         let originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';

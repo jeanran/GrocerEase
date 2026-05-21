@@ -243,6 +243,6 @@
     }
 
     .filter-group input {
-        font-size: 16px; /* prevents zoom on iPhone */
+        font-size: 16px; 
     }
 }

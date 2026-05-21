@@ -39,7 +39,7 @@ body {
     color: white;
     position: fixed;
     top: 0;
-    left: -260px; /* hidden by default (mobile) */
+    left: -260px; 
     height: 100%;
     z-index: 1000;
     overflow-y: auto;

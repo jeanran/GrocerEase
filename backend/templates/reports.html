@@ -82,7 +82,7 @@
 </div>
 
 <style>
-    /* Print button — matches web theme */
+    
     .btn-print {
         background: #1e6f5c;
         color: white;
@@ -99,7 +99,7 @@
     }
     .btn-print:hover { background: #0e5545; }
 
-    /* Hide non-printable elements when printing */
+    
     @media print {
         .sidebar,
         .btn-print,
@@ -116,11 +116,11 @@
     if (userEl) userEl.innerText = '{{ username }}';
 
     let salesChart  = null;
-    let currentTab  = 'sales'; // ← tracks which tab is active for print
+    let currentTab  = 'sales'; 
 
     // ── TAB SWITCH ─────────────────────────────────────
     function switchTab(tab) {
-        currentTab = tab; // ← update tracker
+        currentTab = tab; 
 
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
@@ -215,9 +215,9 @@
                         <td>${p.stock}</td>
                         <td>₱${p.total.toFixed(2)}</td>
                         <td>${p.stock === 0
-                            ? '<span style="color:#e74c3c;font-weight:600;">❌ Out of Stock</span>'
+                            ? '<span style="color:#e74c3c;font-weight:600;"> Out of Stock</span>'
                             : p.stock <= 5
-                            ? '<span style="color:#f39c12;font-weight:600;">⚠️ Low Stock</span>'
+                            ? '<span style="color:#f39c12;font-weight:600;"> Low Stock</span>'
                             : '<span style="color:#27ae60;font-weight:600;">✓ In Stock</span>'
                         }</td>
                     </tr>
@@ -232,14 +232,14 @@
     }
 
     // ── PRINT ──────────────────────────────────────────
-    // Opens a clean printable window — works for physical print + Save as PDF
+    
     function printReport(type) {
         const panelId      = type === 'sales' ? 'salesPanel' : 'inventoryPanel';
         const printContent = document.getElementById(panelId).cloneNode(true);
         const title        = type === 'sales' ? 'Sales Report' : 'Inventory Report';
         const generated    = new Date().toLocaleString();
 
-        // Remove canvas (chart) from print — replace with note
+        
         const canvas = printContent.querySelector('canvas');
         if (canvas) {
             const note = document.createElement('p');
@@ -344,7 +344,7 @@
         `);
         printWindow.document.close();
         printWindow.focus();
-        // slight delay so styles load before printing
+        
         setTimeout(() => { printWindow.print(); }, 400);
     }
 

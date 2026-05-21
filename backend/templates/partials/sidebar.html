@@ -26,12 +26,14 @@
             </a>
         </li>
 
+        <!-- Admin only -->
+        {% if request.session.role == 'admin' %}
         <li class="menu-item" id="menuStockInHistory">
             <a href="{% url 'stock_in_history' %}">
-                <i class="fas fa-history"></i>
-                <span>Stock In History</span>
+                <i class="fas fa-history"></i> Stock In History
             </a>
         </li>
+        {% endif %}
 
         <li class="menu-item" id="menuStockOut">
             <a href="{% url 'stock_out' %}">
@@ -45,11 +47,14 @@
             </a>
         </li>
 
+        <!-- Admin only -->
+        {% if request.session.role == 'admin' %}
         <li class="menu-item" id="menuOrders">
             <a href="{% url 'orders' %}">
                 <i class="fas fa-receipt"></i> Transaction History
             </a>
         </li>
+        {% endif %}
 
         <!-- Admin only -->
         <li class="menu-item admin-only" id="menuReports">
@@ -71,7 +76,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     let role = '{{ request.session.role }}';
 
-    // Staff → hide admin-only menu items
+    
     if (role === 'staff') {
         document.querySelectorAll('.admin-only').forEach(function (el) {
             el.style.display = 'none';

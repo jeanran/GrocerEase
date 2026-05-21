@@ -226,6 +226,8 @@ def stock_in_history(request):
     """Page view for stock in transaction history"""
     if not is_logged_in(request):
         return redirect('login')
+    if not is_admin(request):  # ← add this
+        return redirect('products')
     return render(request, 'stock_in_history.html', {
         'username': request.session.get('username'),
         'role':     request.session.get('role'),
@@ -240,12 +242,6 @@ def manage_users(request):
         'username': request.session.get('username'),
         'role':     request.session.get('role'),
     })
-
-
-# ========================
-# PAGE VIEWS
-# ========================
-
 
 
 def products(request):
@@ -332,9 +328,6 @@ def stock_out(request):
         'username': request.session.get('username'),
         'role':     request.session.get('role'),
     })
-
-
-
 
 
 
@@ -495,6 +488,31 @@ def api_stock_out_add(request):
 # ========================
 # DASHBOARD APIs
 # ========================
+def api_dashboard_stats(request):
+    if not is_logged_in(request):
+        return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+
+    total_products = Product.objects.count()
+    
+    # Out of Stock: products with stock = 0
+    out_of_stock = Product.objects.filter(stock=0).count()
+    
+    # Low Stock: products with stock > 0 AND stock <= reorder_level
+    low_stock = Product.objects.filter(stock__gt=0, stock__lte=F('reorder_level')).count()
+    
+    total_transactions = Transaction.objects.count()
+    today_sales = Transaction.objects.filter(
+        date__date=date.today()
+    ).aggregate(total=Sum('total'))['total'] or 0
+
+    return JsonResponse({
+        'success': True,
+        'total_products': total_products,
+        'out_of_stock': out_of_stock,      # ← Add this
+        'low_stock': low_stock,            # ← Fixed (excludes out of stock)
+        'total_transactions': total_transactions,
+        'today_sales': float(today_sales),
+    })
 def api_dashboard_stats(request):
     if not is_logged_in(request):
         return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
@@ -667,6 +685,9 @@ def api_checkout(request):
 def api_transactions_list(request):
     if not is_logged_in(request):
         return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+    if not is_admin(request):  # ← add this
+        return JsonResponse({'success': False, 'message': 'Access denied.'}, status=403)
+
 
     filterDate = request.GET.get('date', '')
     searchId   = request.GET.get('search', '').lower()
@@ -1318,5 +1339,5 @@ def api_mobile_charts(request):
         'success':       True,
         'weekly':        weekly,
         'monthly':       monthly,
-        'current_month': today.month - 1,   # 0-based for JS
+        'current_month': today.month - 1,
     })
