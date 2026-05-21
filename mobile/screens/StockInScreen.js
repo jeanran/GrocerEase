@@ -115,7 +115,7 @@ export default function StockInScreen({ navigation, route }) {
     const onRefresh    = () => { setRefreshing(true); loadData(); };
     const handleLogout = () => { closeDrawer(); navigation.replace('Login'); };
 
-    // ── entire page as one FlatList item — no nesting ────────────────
+    // ── entire page as one FlatList item ────────────────
     const renderItem = () => (
         <View style={s.pageWrap}>
 
@@ -128,7 +128,7 @@ export default function StockInScreen({ navigation, route }) {
                 <Text style={s.pageHeaderSub}>Add new stock to increase product inventory</Text>
             </View>
 
-            {/* stockin-card — white rounded card */}
+            {/* stockin-card */}
             <View style={s.stockinCard}>
 
                 {/* alert */}
@@ -233,7 +233,7 @@ export default function StockInScreen({ navigation, route }) {
                         onChangeText={v=>setForm(f=>({...f,notes:v}))}/>
                 </View>
 
-                {/* form-actions — green Record + gray Clear */}
+                
                 <View style={s.formActions}>
                     <TouchableOpacity
                         style={[s.btnRecord, processing&&{opacity:0.7}]}
@@ -317,7 +317,7 @@ export default function StockInScreen({ navigation, route }) {
                 </View>
             </View>
 
-            {/* SINGLE FLATLIST — form as one item, no nesting */}
+            {/* SINGLE FLATLIST */}
             <FlatList
                 data={[{key:'form'}]}
                 keyExtractor={i=>i.key}
@@ -353,16 +353,16 @@ const s = StyleSheet.create({
     navUser:   {flexDirection:'row',alignItems:'center',gap:6},
     navUsername:{color:C.white,fontSize:12,fontWeight:'600'},
 
-    // matches web .stockin-container
+    
     pageWrap: {paddingHorizontal:16,paddingTop:20,paddingBottom:8},
 
-    // matches web .page-header
+    
     pageHeader:    {marginBottom:20},
     pageHeaderLeft:{flexDirection:'row',alignItems:'center',marginBottom:4},
     pageHeaderTitle:{fontSize:22,fontWeight:'700',color:C.dark},
     pageHeaderSub: {fontSize:13,color:C.muted,marginLeft:30},
 
-    // matches web .stockin-card
+    
     stockinCard:{
         backgroundColor:C.white,
         borderRadius:16,
@@ -374,18 +374,18 @@ const s = StyleSheet.create({
         elevation:3,
     },
 
-    // matches web .alert
+    
     alertBox:      {flexDirection:'row',alignItems:'center',padding:12,borderRadius:8,marginBottom:16,borderWidth:1},
     alertSuccess:  {backgroundColor:'#d4edda',borderColor:'#c3e6cb'},
     alertError:    {backgroundColor:'#f8d7da',borderColor:'#f5c6cb'},
     alertText:     {fontSize:13,flex:1},
 
-    // matches web .form-group
+    
     formGroup:{marginBottom:20},
     labelRow: {flexDirection:'row',alignItems:'center',marginBottom:8},
     label:    {fontSize:13,fontWeight:'600',color:C.dark},
 
-    // matches web input/select
+    
     input:    {
         borderWidth:1,borderColor:'#ddd',borderRadius:8,
         paddingHorizontal:12,paddingVertical:12,
@@ -395,11 +395,11 @@ const s = StyleSheet.create({
     pickerWrap:{borderWidth:1,borderColor:'#ddd',borderRadius:8,overflow:'hidden',backgroundColor:C.white},
     picker:   {height:50},
 
-    // matches web .stock-info
+    
     stockInfo:    {backgroundColor:'#e8f5f0',padding:10,borderRadius:6,marginTop:8},
     stockInfoText:{fontSize:13,color:C.primary},
 
-    // matches web .form-actions
+    
     formActions:  {flexDirection:'row',gap:12,marginTop:25},
     btnRecord:    {flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',backgroundColor:C.primary,paddingVertical:14,borderRadius:8},
     btnRecordText:{color:C.white,fontSize:15,fontWeight:'600'},
