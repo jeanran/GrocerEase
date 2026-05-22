@@ -43,9 +43,12 @@ def create_jwt_token(user):
 
 
 def get_jwt_from_request(request):
-    auth = request.META.get('HTTP_AUTHORIZATION', '')
-    if auth and auth.lower().startswith('bearer '):
-        return auth.split(' ', 1)[1].strip()
+    # Accept Authorization header from various environments and schemes
+    auth = request.META.get('HTTP_AUTHORIZATION') or request.META.get('Authorization') or ''
+    if auth:
+        parts = auth.split()
+        if len(parts) == 2 and parts[0].lower() in ('bearer', 'token'):
+            return parts[1].strip()
     return request.COOKIES.get('jwt_token')
 
 
@@ -270,8 +273,8 @@ def api_products_list(request):
 
 def api_products_add(request):
     if request.method == 'POST':
-        if not is_logged_in(request):
-            return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+        if not is_logged_in(request) or not is_admin(request):
+            return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
 
         data = json.loads(request.body)
         name = data.get('name', '').strip()
@@ -291,8 +294,8 @@ def api_products_add(request):
 
 def api_products_edit(request, product_id):
     if request.method == 'POST':
-        if not is_logged_in(request):
-            return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+        if not is_logged_in(request) or not is_admin(request):
+            return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
 
         data = json.loads(request.body)
         try:
@@ -365,8 +368,8 @@ def reports(request):
 # STOCK IN APIs
 # ========================
 def api_stock_in_list(request):
-    if not is_logged_in(request):
-        return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+    if not is_logged_in(request) or not is_admin(request):
+        return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
 
     from .models import StockIn
     records = StockIn.objects.all().order_by('-date_received').select_related('product_id', 'received_by')
@@ -489,8 +492,8 @@ def api_stock_out_add(request):
 # DASHBOARD APIs
 # ========================
 def api_dashboard_stats(request):
-    if not is_logged_in(request):
-        return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+    if not is_logged_in(request) or not is_admin(request):
+        return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
 
     total_products = Product.objects.count()
     
@@ -514,8 +517,8 @@ def api_dashboard_stats(request):
         'today_sales': float(today_sales),
     })
 def api_dashboard_stats(request):
-    if not is_logged_in(request):
-        return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+    if not is_logged_in(request) or not is_admin(request):
+        return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
 
     total_products     = Product.objects.count()
     low_stock          = Product.objects.filter(stock__lte=F('reorder_level')).count()
@@ -534,8 +537,8 @@ def api_dashboard_stats(request):
 
 
 def api_dashboard_charts(request):
-    if not is_logged_in(request):
-        return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
+    if not is_logged_in(request) or not is_admin(request):
+        return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=403)
 
     today          = date.today()
     selected_month = int(request.GET.get('month', today.month))
@@ -685,8 +688,6 @@ def api_checkout(request):
 def api_transactions_list(request):
     if not is_logged_in(request):
         return JsonResponse({'success': False, 'message': 'Not logged in.'}, status=401)
-    if not is_admin(request):  # ← add this
-        return JsonResponse({'success': False, 'message': 'Access denied.'}, status=403)
 
 
     filterDate = request.GET.get('date', '')
@@ -795,6 +796,9 @@ def api_login(request):
         if not user.is_verified:
             return JsonResponse({'success': False, 'message': 'Email not verified. Check your inbox.'}, status=403)
 
+        if user.role != 'admin':
+            return JsonResponse({'success': False, 'message': 'Mobile access is for admin only.'}, status=403)
+
         token = create_jwt_token(user)
         return JsonResponse({
             'success':  True,
@@ -815,6 +819,10 @@ def api_login(request):
 @csrf_exempt
 def api_mobile_products(request):
     """Mobile: get all products."""
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
+
     products = Product.objects.all().values(
         'product_id', 'name', 'category', 'price', 'stock', 'unit', 'reorder_level'
     )
@@ -838,6 +846,10 @@ def api_mobile_product_detail(request, product_id):
     """Mobile: get a single product by ID."""
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
 
     try:
         product = Product.objects.get(product_id=product_id)
@@ -887,7 +899,7 @@ def api_mobile_products_add(request):
 @csrf_exempt
 def api_mobile_products_edit(request, product_id):
     """Mobile: edit a product (admin only)."""
-    if request.method != 'POST':
+    if request.method not in ('POST', 'PUT'):
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
 
     user, error = validate_jwt_admin(request)
@@ -914,7 +926,7 @@ def api_mobile_products_edit(request, product_id):
 @csrf_exempt
 def api_mobile_products_delete(request, product_id):
     """Mobile: delete a product (admin only)."""
-    if request.method != 'POST':
+    if request.method not in ('POST', 'DELETE'):
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
 
     user, error = validate_jwt_admin(request)
@@ -970,6 +982,10 @@ def require_mobile_auth(func):
 @csrf_exempt
 def api_mobile_low_stock(request):
     """Mobile: low stock alerts."""
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
+
     products = Product.objects.filter(
         stock__lte=F('reorder_level')
     ).values('product_id', 'name', 'category', 'stock', 'reorder_level', 'unit')
@@ -1002,6 +1018,10 @@ def api_mobile_stock_in_list(request):
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
 
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
+
     from .models import StockIn
     records = StockIn.objects.all().order_by('-date_received').select_related('product_id', 'received_by')
     result  = []
@@ -1026,6 +1046,10 @@ def api_mobile_stock_in_history(request):
     """
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
 
     try:
         records = StockIn.objects.all().order_by('-date_received').select_related('product_id', 'received_by')
@@ -1059,6 +1083,10 @@ def api_mobile_stock_out_list(request):
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
 
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
+
     from .models import StockOut
     records = StockOut.objects.all().order_by('-date').select_related('product_id', 'recorded_by')
     result  = []
@@ -1081,6 +1109,10 @@ def api_mobile_transactions(request):
     """Mobile: list recent transactions."""
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
 
     transactions = Transaction.objects.all().order_by('-date')[:20].select_related('user_id')
     result = []
@@ -1197,6 +1229,10 @@ def api_mobile_stock_in(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
 
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
+
     try:
         from .models import StockIn
         data       = json.loads(request.body)
@@ -1235,6 +1271,10 @@ def api_mobile_stock_out(request):
     """Mobile: record stock out."""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
 
     try:
         from .models import StockOut
@@ -1275,6 +1315,10 @@ def api_mobile_checkout(request):
     """Mobile: process a sale."""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    user, error = validate_jwt_admin(request)
+    if error:
+        return error
 
     try:
         data    = json.loads(request.body)
